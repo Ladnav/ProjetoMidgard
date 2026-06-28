@@ -51,12 +51,12 @@ def create_application(
     apply_theme(initial_theme)
     window = MainWindow(
         settings=settings,
+        profile_store=profile_store,
         initial_theme=initial_theme,
         apply_theme=apply_theme,
         log_path=log_path,
         version=__version__,
     )
-    window.profile_store = profile_store
 
     def cleanup() -> None:
         if hasattr(window, "active_launchers"):

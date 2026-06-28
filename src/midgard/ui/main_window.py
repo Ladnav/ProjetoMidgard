@@ -16,8 +16,9 @@ from PySide6.QtWidgets import (
 )
 
 from midgard.logging_setup import get_logger
+from midgard.profile import ProfileStore
 from midgard.settings import SettingsStore
-from midgard.ui.pages import AboutPage, LogsPage, Page, SettingsPage
+from midgard.ui.pages import AboutPage, LogsPage, Page, ProfilesPage, SettingsPage
 from midgard.ui.theme import THEME_SETTING_KEY, Theme
 
 PAGE_NAMES = (
@@ -37,6 +38,7 @@ class MainWindow(QMainWindow):
     def __init__(
         self,
         settings: SettingsStore,
+        profile_store: ProfileStore,
         initial_theme: Theme,
         apply_theme: Callable[[Theme], None],
         log_path: Path,
@@ -45,6 +47,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._logger = get_logger("ui")
         self._settings = settings
+        self.profile_store = profile_store
         self._apply_theme = apply_theme
         self._buttons: dict[str, QPushButton] = {}
         self._pages: dict[str, QWidget] = {}
@@ -89,12 +92,7 @@ class MainWindow(QMainWindow):
                 "No automation is configured or running. Future capabilities will be added "
                 "only through approved tasks.",
             ),
-            "Profiles": Page(
-                "Profiles",
-                "Character profiles will be managed here.",
-                "No profiles yet",
-                "Profile storage and behavior remain an open design decision.",
-            ),
+            "Profiles": ProfilesPage(self.profile_store),
             "Runtime": Page(
                 "Runtime",
                 "Runtime status will appear here when that capability is approved.",

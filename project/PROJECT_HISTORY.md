@@ -98,3 +98,10 @@ not available at the time.
 - Integrated `ConsumablesModule` into `RuntimeEngine` and updated the loop tick priority queue (Heal > Consumables > Combat > Navigation).
 - Added comprehensive unit tests in `tests/test_consumables.py` verifying duration item parsing, recast checks, and priority execution interrupts.
 - Verified all 37 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+## 2026-06-28 — TASK-010 Midgard Studio GUI Rules Integration
+
+- Replaced the profile placeholder page in the PySide6 app with an interactive tabbed rules configuration view (`ProfilesPage`).
+- Implemented forms for all engine modules (Healing, Consumables, Combat, Navigation) mapped directly to SQLite settings fields via `ProfileStore`.
+- Added mock dialog coverage to test case GUI automation and verified UI forms, saving updates, and loading states without blocking modal popups.
+- Verified all 38 tests passing under Python 3.14.5 and Ruff check formatting validation.
