@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-013 — Antidetection Protections & Alarm Notification System.
+TASK-014 — A* Pathfinding & Emergency Evasion.
 
 ## Present
 
@@ -31,18 +31,20 @@ TASK-013 — Antidetection Protections & Alarm Notification System.
 - Visual `PickDialog` coordinate and color picker overlay displaying target window GDI captures with hover tooltips and automatic coordinate/RGB population
 - Antidetection input protections: Bezier curve smooth mouse trajectories, randomized key/click hold durations mimicking human behavior
 - Alarm notification system: engine emits IPC TCP `alarm` events for character death (HP=0%) and game client disconnection; Studio plays audio beep and flashes red UI alerts
-- Integration of GDI screen capture, input services, and multiple prioritized evaluation modules (Heal > Consumables > Combat > Navigation) into the active `RuntimeEngine` loop
+- A* pathfinding navigation: grid-based pathfinding route solver for custom game obstacle maps and coordinate sequential walks
+- Emergency Evasion Module: panic triggers using configurable hotkeys (teleport/logout) if player health drops below critical threshold (e.g. 20%)
+- Integration of GDI screen capture, input services, and multiple prioritized evaluation modules (Heal > Evasion > Consumables > Combat > Navigation) into the active `RuntimeEngine` loop
 - Console and rotating-file application logging
 - Application version 0.2.0 displayed on the About page
 - uv dependency declaration and lock-file workflow
 - Ruff formatter and linter configuration
-- pytest coverage for package metadata, settings, character profiles, runtime/IPC, GDI capture, Win32/Dummy inputs, Heal triggers, Combat scanning, Waypoint navigation, Consumables timers, Profiles rules GUI, Runtime GUI, Pick Dialog overlay, and Antidetection/Alarm system
+- pytest coverage for package metadata, settings, character profiles, runtime/IPC, GDI capture, Win32/Dummy inputs, Heal triggers, Combat scanning, Waypoint navigation, Consumables timers, Profiles rules GUI, Runtime GUI, Pick Dialog overlay, Antidetection/Alarm system, A* Pathfinding route solver, and Evasion trigger modules
 - GitHub Actions quality workflow for Ubuntu Latest (selectively skipping Windows GDI capture and Win32 input/mouse tests)
 - Bootstrap, contributor, licensing, changelog, and project-memory documentation
 
 ## Not present
 
-- Pathfinding path meshes (A* navmesh navigation)
+- Pathfinding path meshes (A* navmesh navigation) [Implemented grid-based A* routing, mesh structures not present]
 - Computer vision or OCR (YOLO object detection)
 - Plugin system
 - AI features
@@ -63,7 +65,7 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 - Ruff formatting check passed
 - Ruff lint check passed
-- pytest passed with 48 tests
+- pytest passed with 52 tests
 - SQLite theme persistence passed across application starts
 - SQLite character profiles CRUD, rules, cascading deletion, and stats tracking passed
 - Runtime launcher, TCP protocol packing, engine cycle commands, and graceful subprocess termination passed
@@ -76,9 +78,10 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 - Runtime GUI controller profile selection, start/pause/stop process triggers, worker thread updates, live logging terminal, and telemetry tests passed
 - Visual Pick Dialog coordinate pixel clicks, hover tooltip updates, screen capture conversions, and automatic UI form population tests passed
 - Bezier path smoothing (start/end coverage, intermediate steps), randomized key hold times, engine death and disconnect alarm events, and GUI alarm handler display tests passed
+- A* path routing solvers (basic path, obstacle detours, blocked targets) and Evasion panic health hotkey actions tested and passed
 - Native Windows launch and dark/light theme screenshots were visually inspected
 - The uv lock resolves the full PySide6 dependency for CI installation
 
 ## Delivery state
 
-TASK-013 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-014 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

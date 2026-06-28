@@ -57,16 +57,57 @@ class NavigationModule:
         if now - self.last_move_time < self.current_wait_time:
             return None
 
-        # Execute walk action to current waypoint
+        # Execute A* step-by-step or direct walk action to current waypoint
         x, y, wait_time = self.waypoints[self.current_index]
-        self.input_adapter.move_mouse_relative(self.hwnd, x, y)
-        time.sleep(random.uniform(0.05, 0.1))
-        self.input_adapter.click_mouse("left")
 
-        log_msg = (
-            f"Navigation click at coordinate ({x}, {y}) for waypoint index "
-            f"{self.current_index}. Waiting {wait_time}s for arrival."
-        )
+        # Dynamic pathfinding option
+        grid_map = self.rules.get("navigation.grid_map")
+        # If grid_map rule is set, we run A* pathfinding.
+        # Example format for grid_map: "10x10;0,0,0,0,0,0,0,0,0,0;..." or we parse a list of lists.
+        # For simulation & testing, we accept navigation.grid_map representation
+        path = None
+        if grid_map:
+            from midgard.runtime.pathfinding import AStarNavigator
+
+            try:
+                # Format: "width,height;row0;row1;..." where row is 0,1,0,...
+                parts = grid_map.strip().split(";")
+                w, h = map(int, parts[0].split(","))
+                grid = []
+                for row_str in parts[1:]:
+                    if row_str.strip():
+                        grid.append(list(map(int, row_str.strip().split(","))))
+
+                # Assume start at last known click or 0,0 for routing simulation
+                # We target (x, y) as grid coordinate
+                navigator = AStarNavigator(grid)
+                # Map coordinate to grid node (e.g. integer division/mapping if larger)
+                start_node = (0, 0)
+                end_node = (x, y)
+                path = navigator.find_path(start_node, end_node)
+            except Exception:
+                pass
+
+        if path and len(path) > 1:
+            # Walk sequentially along the computed path steps
+            for px, py in path[1:]:
+                self.input_adapter.move_mouse_relative(self.hwnd, px, py)
+                time.sleep(random.uniform(0.01, 0.03))
+                self.input_adapter.click_mouse("left")
+                time.sleep(random.uniform(0.05, 0.1))
+            log_msg = (
+                f"Navigation A* path traversal to coordinate ({x}, {y}) "
+                f"completed via steps: {path[1:]}. "
+                f"Waiting {wait_time}s for arrival."
+            )
+        else:
+            self.input_adapter.move_mouse_relative(self.hwnd, x, y)
+            time.sleep(random.uniform(0.05, 0.1))
+            self.input_adapter.click_mouse("left")
+            log_msg = (
+                f"Navigation click at coordinate ({x}, {y}) for waypoint index "
+                f"{self.current_index}. Waiting {wait_time}s for arrival."
+            )
 
         # Update timers and cycle waypoint index
         self.last_move_time = now

@@ -10,6 +10,7 @@ from pathlib import Path
 from midgard.profile import ProfileStore
 from midgard.runtime.combat import CombatModule
 from midgard.runtime.consumables import ConsumablesModule
+from midgard.runtime.evasion import EvasionModule
 from midgard.runtime.heal import HealModule
 from midgard.runtime.input import DummyInputAdapter, Win32InputAdapter
 from midgard.runtime.navigation import NavigationModule
@@ -42,6 +43,7 @@ class RuntimeEngine:
         self.combat_module: CombatModule | None = None
         self.navigation_module: NavigationModule | None = None
         self.consumables_module: ConsumablesModule | None = None
+        self.evasion_module: EvasionModule | None = None
         self.capture_failures = 0
 
         # Stats
@@ -74,6 +76,10 @@ class RuntimeEngine:
                 # Initialize consumables rules dict
                 consumable_rules = profile.rules.get("consumables", {})
                 self.consumables_module = ConsumablesModule(consumable_rules, self.input_adapter)
+
+                # Initialize evasion rules dict
+                evasion_rules = profile.rules.get("evasion", {})
+                self.evasion_module = EvasionModule(evasion_rules, self.input_adapter)
 
                 # Initialize combat rules dict
                 combat_rules = profile.rules.get("combat", {})
@@ -212,68 +218,7 @@ class RuntimeEngine:
                 image = self.capture_service.capture()
                 self.capture_failures = 0
 
-                # Evaluate modules based on priority:
-                # 1. Heal (Highest Priority)
-                # 2. Consumables (Second Priority)
-                # 3. Combat (Third Priority)
-                # 4. Navigation (Lowest Priority)
-                triggered_action = False
-
-                if self.heal_module:
-                    heal_log = self.heal_module.evaluate(image)
-                    if heal_log:
-                        triggered_action = True
-                        send_message(
-                            self._sock,
-                            {
-                                "type": "log",
-                                "message": heal_log,
-                                "level": "INFO",
-                            },
-                        )
-
-                # Only evaluate consumables if no healing triggered
-                if not triggered_action and self.consumables_module:
-                    consumables_log = self.consumables_module.evaluate(image)
-                    if consumables_log:
-                        triggered_action = True
-                        send_message(
-                            self._sock,
-                            {
-                                "type": "log",
-                                "message": consumables_log,
-                                "level": "INFO",
-                            },
-                        )
-
-                # Only combat if no healing or consumables triggered
-                if not triggered_action and self.combat_module:
-                    combat_log = self.combat_module.evaluate(image)
-                    if combat_log:
-                        triggered_action = True
-                        send_message(
-                            self._sock,
-                            {
-                                "type": "log",
-                                "message": combat_log,
-                                "level": "INFO",
-                            },
-                        )
-
-                # Only navigate if no healing, consumables, or combat action triggered
-                if not triggered_action and self.navigation_module:
-                    nav_log = self.navigation_module.evaluate(image)
-                    if nav_log:
-                        send_message(
-                            self._sock,
-                            {
-                                "type": "log",
-                                "message": nav_log,
-                                "level": "INFO",
-                            },
-                        )
-
-                # Calculate dynamic HP status percentage
+                # 1. Calculate dynamic HP status percentage first so evasion has real data
                 if self.heal_module and self.heal_module.enabled:
                     try:
                         pixel = image.getpixel((self.heal_module.hp_x, self.heal_module.hp_y))
@@ -293,6 +238,82 @@ class RuntimeEngine:
                                 hp_pct = 92
                     except IndexError:
                         pass
+
+                # Evaluate modules based on priority:
+                # 1. Heal (Highest Priority)
+                # 2. Evasion (Panic Evasion Trigger)
+                # 3. Consumables (Third Priority)
+                # 4. Combat (Fourth Priority)
+                # 5. Navigation (Lowest Priority)
+                triggered_action = False
+
+                if self.heal_module:
+                    heal_log = self.heal_module.evaluate(image)
+                    if heal_log:
+                        triggered_action = True
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "log",
+                                "message": heal_log,
+                                "level": "INFO",
+                            },
+                        )
+
+                # Emergency evasion check
+                if not triggered_action and self.evasion_module:
+                    evasion_log = self.evasion_module.evaluate_hp(hp_pct)
+                    if evasion_log:
+                        triggered_action = True
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "log",
+                                "message": evasion_log,
+                                "level": "WARNING",
+                            },
+                        )
+
+                # Only evaluate consumables if no healing or evasion triggered
+                if not triggered_action and self.consumables_module:
+                    consumables_log = self.consumables_module.evaluate(image)
+                    if consumables_log:
+                        triggered_action = True
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "log",
+                                "message": consumables_log,
+                                "level": "INFO",
+                            },
+                        )
+
+                # Only combat if no healing, evasion, or consumables triggered
+                if not triggered_action and self.combat_module:
+                    combat_log = self.combat_module.evaluate(image)
+                    if combat_log:
+                        triggered_action = True
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "log",
+                                "message": combat_log,
+                                "level": "INFO",
+                            },
+                        )
+
+                # Only navigate if no healing, evasion, consumables, or combat action triggered
+                if not triggered_action and self.navigation_module:
+                    nav_log = self.navigation_module.evaluate(image)
+                    if nav_log:
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "log",
+                                "message": nav_log,
+                                "level": "INFO",
+                            },
+                        )
             except Exception as e:
                 self.capture_failures += 1
                 if self.capture_failures == 5:
