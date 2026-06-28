@@ -91,6 +91,7 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     if sec_idx >= 0:
         profiles_page.sec_panic_action.setCurrentIndex(sec_idx)
     profiles_page.sec_panic_hotkey.setText("F11")
+    profiles_page.sec_discord_webhook.setText("https://discord.com/api/webhooks/123")
 
     # Edit Stash rules in UI
     profiles_page.stash_enabled.setChecked(True)
@@ -99,6 +100,9 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     profiles_page.stash_kafra_y.setValue(400)
     profiles_page.stash_weight_check_x.setValue(580)
     profiles_page.stash_weight_check_y.setValue(75)
+    profiles_page.stash_restock_enabled.setChecked(True)
+    profiles_page.stash_merchant_x.setValue(380)
+    profiles_page.stash_merchant_y.setValue(380)
 
     # Save via GUI
     profiles_page._save_profile_rules()
@@ -160,6 +164,7 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     assert security_rules.get("security.threshold") == "0.9"
     assert security_rules.get("security.panic_action") == "teleport"
     assert security_rules.get("security.panic_hotkey") == "F11"
+    assert security_rules.get("security.discord_webhook") == "https://discord.com/api/webhooks/123"
 
     stash_rules = db_profile.rules.get("stash", {})
     assert stash_rules.get("stash.enabled") == "true"
@@ -168,6 +173,9 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     assert stash_rules.get("stash.kafra_y") == "400"
     assert stash_rules.get("stash.weight_check_x") == "580"
     assert stash_rules.get("stash.weight_check_y") == "75"
+    assert stash_rules.get("stash.restock_enabled") == "true"
+    assert stash_rules.get("stash.merchant_x") == "380"
+    assert stash_rules.get("stash.merchant_y") == "380"
 
     # Close resources
     window.close()

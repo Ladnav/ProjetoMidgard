@@ -16,6 +16,11 @@ class StashModule:
         self.kafra_x = int(rules.get("stash.kafra_x", "300"))
         self.kafra_y = int(rules.get("stash.kafra_y", "300"))
         
+        # Restocking merchant rules (TASK-028)
+        self.restock_enabled = rules.get("stash.restock_enabled", "false").lower() == "true"
+        self.merchant_x = int(rules.get("stash.merchant_x", "400"))
+        self.merchant_y = int(rules.get("stash.merchant_y", "400"))
+        
         # Color match coordinates for weight alert icon (e.g. balança laranja/vermelho)
         self.weight_check_x = int(rules.get("stash.weight_check_x", "600"))
         self.weight_check_y = int(rules.get("stash.weight_check_y", "50"))
@@ -78,4 +83,18 @@ class StashModule:
 
         # Cycle finished: clear weight block state
         self.is_banking = False
+        
+        # If restocking is enabled, trigger shop purchase movements after storage banking (TASK-028)
+        restock_enabled = getattr(self, "restock_enabled", False)
+        if restock_enabled:
+            # Click the Merchant coordinates
+            time.sleep(0.5)
+            self.input_adapter.move_mouse_relative(hwnd, self.merchant_x, self.merchant_y)
+            self.input_adapter.click_mouse("left")
+            time.sleep(0.4)
+            # Purchase items line click
+            self.input_adapter.move_mouse_relative(hwnd, self.merchant_x, self.merchant_y + 40)
+            self.input_adapter.click_mouse("left")
+            return f"Kafra banking and merchant restocking completed. Restocked items at coordinates ({self.merchant_x}, {self.merchant_y})."
+
         return f"Kafra banking cycle completed at coordinates ({self.kafra_x}, {self.kafra_y}). Resuming farming."

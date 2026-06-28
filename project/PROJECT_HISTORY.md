@@ -219,6 +219,14 @@ not available at the time.
 - Integrated Stash tab GUI rules rules inside `ProfilesPage` and database loader/saver (`src/midgard/ui/pages.py`).
 - Created `tests/test_stash.py` verifying weight warning detection and Kafra storage dialog click flows. Completed verification check with all 69 tests passing successfully.
 
+## 2026-06-28 — TASK-028 Anti-Cheat Polymorphic Input, Auto-Restocking, and Discord Webhooks
+
+- Added Gaussian noise coordinate offsets and dampings inside `generate_bezier_path` (`src/midgard/runtime/input.py`) to create polymorphic, unique hand mouse movement curves.
+- Created `DiscordNotifier` in `src/midgard/runtime/discord.py` posting styled embeds alert status warnings.
+- Updated `StashModule` in `src/midgard/runtime/stash.py` to trigger merchant NPC buy transactions.
+- Updated Security and Stash GUI settings rules in `src/midgard/ui/pages.py` to support discord webhooks and merchant restocks.
+- Created `tests/test_polymorphic_discord.py` and succeeded verification check with all 72 tests passing.
+
 
 
 

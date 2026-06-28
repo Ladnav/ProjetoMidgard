@@ -93,7 +93,14 @@ def generate_bezier_path(
         t = i / steps
         xt = (1 - t) ** 3 * x0 + 3 * (1 - t) ** 2 * t * x1 + 3 * (1 - t) * t**2 * x2 + t**3 * x3
         yt = (1 - t) ** 3 * y0 + 3 * (1 - t) ** 2 * t * y1 + 3 * (1 - t) * t**2 * y2 + t**3 * y3
-        path.append((int(xt), int(yt)))
+        
+        # Add micro-deviations (polymorphic hand jitter) via Gaussian random noise
+        # Decrease noise amplitude as we approach the final destination (end point)
+        damping = 1.0 - t
+        jitter_x = random.gauss(0.0, 1.5) * damping
+        jitter_y = random.gauss(0.0, 1.5) * damping
+        
+        path.append((int(xt + jitter_x), int(yt + jitter_y)))
     return path
 
 

@@ -1043,11 +1043,15 @@ class ProfilesPage(Page):
         self.sec_panic_hotkey.setText("F12")
         self.sec_panic_hotkey.setPlaceholderText("e.g. F12")
 
+        self.sec_discord_webhook = QLineEdit()
+        self.sec_discord_webhook.setPlaceholderText("e.g. https://discord.com/api/webhooks/...")
+
         layout.addRow(self.sec_enabled)
         layout.addRow("Captcha Templates Directory", self.sec_templates_dir)
         layout.addRow("Detection Threshold", self.sec_threshold)
         layout.addRow("Panic Action Response", self.sec_panic_action)
         layout.addRow("Teleport Panic Hotkey", self.sec_panic_hotkey)
+        layout.addRow("Discord Webhook URL", self.sec_discord_webhook)
 
         self.tab_widget.addTab(tab, "Security")
 
@@ -1071,10 +1075,20 @@ class ProfilesPage(Page):
         self.stash_weight_check_x = QSpinBox()
         self.stash_weight_check_x.setRange(0, 3000)
         self.stash_weight_check_x.setValue(600)
-
         self.stash_weight_check_y = QSpinBox()
         self.stash_weight_check_y.setRange(0, 3000)
         self.stash_weight_check_y.setValue(50)
+
+        # Restock rules widgets (TASK-028)
+        self.stash_restock_enabled = QCheckBox("Enable Potion/Fly Wing Merchant Restocking")
+        
+        self.stash_merchant_x = QSpinBox()
+        self.stash_merchant_x.setRange(0, 3000)
+        self.stash_merchant_x.setValue(400)
+
+        self.stash_merchant_y = QSpinBox()
+        self.stash_merchant_y.setRange(0, 3000)
+        self.stash_merchant_y.setValue(400)
 
         layout.addRow(self.stash_enabled)
         layout.addRow("Town Teleport Hotkey", self.stash_teleport_hotkey)
@@ -1092,6 +1106,15 @@ class ProfilesPage(Page):
         weight_coords.addWidget(QLabel("Y:"))
         weight_coords.addWidget(self.stash_weight_check_y)
         layout.addRow("Weight Warning Icon Pixel Coords", weight_coords)
+
+        # restock row
+        layout.addRow(self.stash_restock_enabled)
+        merchant_coords = QHBoxLayout()
+        merchant_coords.addWidget(QLabel("X:"))
+        merchant_coords.addWidget(self.stash_merchant_x)
+        merchant_coords.addWidget(QLabel("Y:"))
+        merchant_coords.addWidget(self.stash_merchant_y)
+        layout.addRow("Merchant NPC Coordinates", merchant_coords)
 
         self.tab_widget.addTab(tab, "Stash")
 
@@ -1191,6 +1214,7 @@ class ProfilesPage(Page):
         if sec_idx >= 0:
             self.sec_panic_action.setCurrentIndex(sec_idx)
         self.sec_panic_hotkey.setText(sec.get("security.panic_hotkey", "F12"))
+        self.sec_discord_webhook.setText(sec.get("security.discord_webhook", ""))
 
         # Load Stash rules (TASK-027)
         stash = rules.get("stash", {})
@@ -1200,6 +1224,11 @@ class ProfilesPage(Page):
         self.stash_kafra_y.setValue(int(stash.get("stash.kafra_y", "300")))
         self.stash_weight_check_x.setValue(int(stash.get("stash.weight_check_x", "600")))
         self.stash_weight_check_y.setValue(int(stash.get("stash.weight_check_y", "50")))
+        
+        # Load restock rules (TASK-028)
+        self.stash_restock_enabled.setChecked(stash.get("stash.restock_enabled", "false").lower() == "true")
+        self.stash_merchant_x.setValue(int(stash.get("stash.merchant_x", "400")))
+        self.stash_merchant_y.setValue(int(stash.get("stash.merchant_y", "400")))
 
     def _save_profile_rules(self) -> None:
         """Persist rule configuration fields to the SQLite profile database."""
@@ -1398,6 +1427,9 @@ class ProfilesPage(Page):
             self.profile_store.set_rule(
                 profile_id, "security", "security.panic_hotkey", self.sec_panic_hotkey.text().strip()
             )
+            self.profile_store.set_rule(
+                profile_id, "security", "security.discord_webhook", self.sec_discord_webhook.text().strip()
+            )
 
             # Save Stash rules (TASK-027)
             self.profile_store.set_rule(
@@ -1417,6 +1449,17 @@ class ProfilesPage(Page):
             )
             self.profile_store.set_rule(
                 profile_id, "stash", "stash.weight_check_y", str(self.stash_weight_check_y.value())
+            )
+            
+            # Save restock options (TASK-028)
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.restock_enabled", str(self.stash_restock_enabled.isChecked()).lower()
+            )
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.merchant_x", str(self.stash_merchant_x.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.merchant_y", str(self.stash_merchant_y.value())
             )
 
             QMessageBox.information(self, "Success", "Profile automation rules saved successfully.")

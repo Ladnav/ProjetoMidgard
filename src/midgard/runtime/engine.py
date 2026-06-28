@@ -99,6 +99,10 @@ class RuntimeEngine:
                 from midgard.runtime.stash import StashModule
                 self.stash_module = StashModule(stash_rules, self.input_adapter)
 
+                # Initialize Discord webhook notifier (TASK-028)
+                from midgard.runtime.discord import DiscordNotifier
+                self.discord_notifier = DiscordNotifier(security_rules)
+
                 # Initialize combat rules dict
                 combat_rules = profile.rules.get("combat", {})
 
@@ -339,6 +343,9 @@ class RuntimeEngine:
                                     "message": anomaly_log,
                                 },
                             )
+                            # Send Discord notification webhook alert
+                            if hasattr(self, "discord_notifier") and self.discord_notifier:
+                                self.discord_notifier.send_notification(anomaly_log, level="CRITICAL")
                             # Pause loop execution for security
                             self.active = False
                 except Exception:
