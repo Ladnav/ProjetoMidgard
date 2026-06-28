@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-008 — Midgard Waypoint Navigation & Priority Loop implementation.
+TASK-009 — Midgard Consumables & Buffs implementation.
 
 ## Present
 
@@ -25,12 +25,13 @@ TASK-008 — Midgard Waypoint Navigation & Priority Loop implementation.
 - Autonomous `HealModule` analyzing captured screen pixels to trigger recovery actions respecting random human-like delays
 - Autonomous `CombatModule` performing color-based target scanning (centroid detection of matching pixel clusters) and triggering mouse attack commands
 - Autonomous `NavigationModule` executing sequential waypoint walking loops via window client clicks and arrival timers
-- Integration of GDI screen capture, input services, and multiple prioritized evaluation modules (Heal > Combat > Navigation) into the active `RuntimeEngine` loop
+- Autonomous `ConsumablesModule` evaluating duration intervals to recast buffs and use utility items
+- Integration of GDI screen capture, input services, and multiple prioritized evaluation modules (Heal > Consumables > Combat > Navigation) into the active `RuntimeEngine` loop
 - Console and rotating-file application logging
 - Application version 0.2.0 displayed on the About page
 - uv dependency declaration and lock-file workflow
 - Ruff formatter and linter configuration
-- pytest coverage for package metadata, settings, character profiles, runtime/IPC, GDI capture, Win32/Dummy inputs, Heal triggers, Combat scanning, and Waypoint navigation
+- pytest coverage for package metadata, settings, character profiles, runtime/IPC, GDI capture, Win32/Dummy inputs, Heal triggers, Combat scanning, Waypoint navigation, and Consumables timers
 - GitHub Actions quality workflow for Ubuntu Latest (selectively skipping Windows GDI capture and Win32 input/mouse tests)
 - Bootstrap, contributor, licensing, changelog, and project-memory documentation
 
@@ -57,7 +58,7 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 - Ruff formatting check passed
 - Ruff lint check passed
-- pytest passed with 34 tests
+- pytest passed with 37 tests
 - SQLite theme persistence passed across application starts
 - SQLite character profiles CRUD, rules, cascading deletion, and stats tracking passed
 - Runtime launcher, TCP protocol packing, engine cycle commands, and graceful subprocess termination passed
@@ -65,9 +66,10 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 - Win32 key/mouse input packing, Heal Module pixel color deviation triggers, and random cooldown tests passed
 - Combat Module color target scanning, centroid calculation, and target clicking tests passed
 - Navigation Module waypoint parsing, sequential index walking, wait cooldowns, and Heal/Combat interrupt priority tests passed
+- Consumables Module duration interval recasting, parser configuration, and prioritized (Heal > Consumables > Combat > Navigation) execution tests passed
 - Native Windows launch and dark/light theme screenshots were visually inspected
 - The uv lock resolves the full PySide6 dependency for CI installation
 
 ## Delivery state
 
-TASK-008 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-009 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

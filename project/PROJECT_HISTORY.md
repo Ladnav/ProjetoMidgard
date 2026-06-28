@@ -91,3 +91,10 @@ not available at the time.
 - Implemented the priority evaluation hierarchy (Heal > Combat > Navigation) inside `RuntimeEngine._tick` to prevent navigation clicks from interrupting critical heal triggers or combat target attacks.
 - Added comprehensive unit tests in `tests/test_navigation.py` validating waypoint coordinate parsing, sequential walk index increments, cooldown arrival timers, and priority loop evaluation states.
 - Verified all 34 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+## 2026-06-28 — TASK-009 Midgard Consumables & Buffs
+
+- Created `ConsumablesModule` in `src/midgard/runtime/consumables.py` designed to read and parse timed consumable duration lists (format: `name,key,duration;name,key,duration`) and trigger recasting keypresses as durations expire.
+- Integrated `ConsumablesModule` into `RuntimeEngine` and updated the loop tick priority queue (Heal > Consumables > Combat > Navigation).
+- Added comprehensive unit tests in `tests/test_consumables.py` verifying duration item parsing, recast checks, and priority execution interrupts.
+- Verified all 37 tests passing under Python 3.14.5 and Ruff check formatting validation.
