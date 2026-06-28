@@ -649,6 +649,16 @@ class ProfilesPage(Page):
 
         self.card_layout.addLayout(selector_layout)
 
+        # 1.5 Target Game Window Title Input row
+        window_title_layout = QHBoxLayout()
+        window_title_layout.setContentsMargins(0, 5, 0, 10)
+        window_title_lbl = QLabel("Target Game Window Title:")
+        self.window_title_input = QLineEdit()
+        self.window_title_input.setPlaceholderText("e.g. Ragnarok")
+        window_title_layout.addWidget(window_title_lbl)
+        window_title_layout.addWidget(self.window_title_input, 1)
+        self.card_layout.addLayout(window_title_layout)
+
         # 2. Rule configuration Tab Widget
         self.tab_widget = QTabWidget()
         self.card_layout.addWidget(self.tab_widget)
@@ -863,6 +873,9 @@ class ProfilesPage(Page):
         if not profile:
             return
 
+        # Load metadata
+        self.window_title_input.setText(profile.window_title or "")
+
         rules = profile.rules
 
         # Load Healing rules
@@ -912,6 +925,10 @@ class ProfilesPage(Page):
             return
 
         try:
+            # 0. Save window title metadata
+            window_title = self.window_title_input.text().strip()
+            self.profile_store.update_profile_window_title(profile_id, window_title)
+
             # 1. Save Healing rules
             self.profile_store.set_rule(
                 profile_id, "healing", "heal.enabled", str(self.heal_enabled.isChecked()).lower()

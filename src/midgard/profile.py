@@ -223,6 +223,19 @@ class ProfileStore:
                 (experience_gained, deaths, loot_count, runtime_seconds, profile_id),
             )
 
+    def update_profile_window_title(self, profile_id: int, window_title: str) -> None:
+        """Update the target window title for a character profile."""
+        with self._connection:
+            self._connection.execute(
+                """
+                UPDATE profiles
+                SET window_title = ?,
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+                """,
+                (window_title, profile_id),
+            )
+
     def delete_profile(self, profile_id: int) -> None:
         """Delete a profile and all its associated rules and stats (cascading)."""
         with self._connection:

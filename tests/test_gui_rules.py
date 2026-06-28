@@ -37,6 +37,7 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     assert profiles_page.heal_hp_key.currentText() == "F1"
 
     # 3. Edit rules in UI
+    profiles_page.window_title_input.setText("Ragnarok Classic")
     profiles_page.heal_enabled.setChecked(True)
     profiles_page.heal_hp_threshold.setValue(85)
     profiles_page.heal_hp_key.setCurrentText("F4")
@@ -61,7 +62,7 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     # 4. Assert saved rules in database
     db_profile = store.get_profile(profile_id)
     assert db_profile is not None
-    assert db_profile.name == "Odin"
+    assert db_profile.window_title == "Ragnarok Classic"
 
     healing_rules = db_profile.rules.get("healing", {})
     assert healing_rules.get("heal.enabled") == "true"
