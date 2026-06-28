@@ -29,6 +29,8 @@ only: none are designed or implemented in the current foundation.
 - Current application version: 0.2.0
 - Local preference persistence: SQLite using Python's standard `sqlite3` module
 - Application logging: console and local rotating file
+- Runtime lifecycle and process model: multi-process isolation (each profile runs in its own subprocess `RuntimeEngine`)
+- Event communication mechanism: TCP socket loopback (`127.0.0.1`) with length-prefixed JSON serialization to cross privilege boundaries safely
 
 ## Current scope boundary
 
@@ -51,10 +53,8 @@ does not authorize or implement runtime logic.
 - Supported desktop operating systems
 - Application packaging and distribution format
 - Domain module boundaries beyond the current application foundation
-- Event communication mechanism and its delivery semantics
 - SQLite schema migration strategy beyond the initial settings table
 - Method for delivering built-in documentation in the application
-- Runtime lifecycle and process model
 - Release process, initial release date, and tagging procedure
 - Formal copyright ownership beyond the current contributor notice
 

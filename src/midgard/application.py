@@ -59,6 +59,9 @@ def create_application(
     window.profile_store = profile_store
 
     def cleanup() -> None:
+        if hasattr(window, "active_launchers"):
+            for launcher in window.active_launchers:
+                launcher.terminate()
         settings.close()
         profile_store.close()
 

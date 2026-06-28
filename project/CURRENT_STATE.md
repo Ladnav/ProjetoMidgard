@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-003 — Character Profiles database schema and spec implementation.
+TASK-004 — Midgard Runtime Process Model and IPC implementation.
 
 ## Present
 
@@ -16,11 +16,13 @@ TASK-003 — Character Profiles database schema and spec implementation.
 - Light and dark themes selectable in Settings
 - Theme preference persisted in a local SQLite `app_settings` table
 - SQLite database schema and `ProfileStore` manager for Character Profiles (supporting cascading deletes on rules/stats)
+- Multi-process runtime architecture with `RuntimeLauncher` spawning `RuntimeEngine` subprocesses
+- TCP-based IPC loopback protocol with JSON event framing and command control
 - Console and rotating-file application logging
 - Application version 0.2.0 displayed on the About page
 - uv dependency declaration and lock-file workflow
 - Ruff formatter and linter configuration
-- pytest coverage for package metadata, settings persistence, navigation, themes, logging, and character profiles
+- pytest coverage for package metadata, settings persistence, navigation, themes, logging, character profiles, and runtime/IPC
 - GitHub Actions quality workflow for Ubuntu Latest
 - Bootstrap, contributor, licensing, changelog, and project-memory documentation
 
@@ -51,12 +53,13 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 - Ruff formatting check passed
 - Ruff lint check passed
-- pytest passed with 14 tests
+- pytest passed with 16 tests
 - SQLite theme persistence passed across application starts
 - SQLite character profiles CRUD, rules, cascading deletion, and stats tracking passed
+- Runtime launcher, TCP protocol packing, engine cycle commands, and graceful subprocess termination passed
 - Native Windows launch and dark/light theme screenshots were visually inspected
 - The uv lock resolves the full PySide6 dependency for CI installation
 
 ## Delivery state
 
-TASK-003 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-004 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

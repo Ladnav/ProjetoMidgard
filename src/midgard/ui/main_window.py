@@ -48,6 +48,7 @@ class MainWindow(QMainWindow):
         self._apply_theme = apply_theme
         self._buttons: dict[str, QPushButton] = {}
         self._pages: dict[str, QWidget] = {}
+        self.active_launchers = []
 
         self.setWindowTitle("Midgard Studio")
         self.setMinimumSize(960, 640)

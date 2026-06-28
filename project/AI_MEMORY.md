@@ -10,9 +10,10 @@ does not override, explicit user instructions or approved task decisions.
 - Python 3.12/3.14 is the approved primary language version.
 - The executable graphical foundation is Midgard Studio, built with PySide6.
 - SQLite is the approved embedded database.
-- Communication should be event-oriented where appropriate; no mechanism is selected.
+- Communication is event-oriented, using a local TCP loopback (`127.0.0.1`) IPC socket with length-prefixed JSON serialization to safely cross privilege boundaries.
 - Configuration will be managed through the UI.
 - Each character has an independent profile stored in the SQLite database (`profiles`, `profile_rules`, `profile_stats` tables).
+- The bot execution engine uses a multi-process model: the Studio UI launches and manages independent `RuntimeEngine` subprocesses via `RuntimeLauncher`.
 - Documentation is part of the product and must track implementation.
 - The engineering workflow uses uv (or fallback pip), Ruff, pytest, Semantic Versioning, and GitHub Actions.
 - Midgard Studio 0.2.0 has seven page shells, light/dark themes, SQLite-backed preferences, ProfileStore backend, and basic application logging.

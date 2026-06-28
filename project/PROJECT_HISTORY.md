@@ -46,3 +46,13 @@ not available at the time.
 - Hooked the database connection initialization and cleanup for `ProfileStore` into the main application bootstrap process in `src/midgard/application.py`.
 - Added comprehensive unit test coverage in `tests/test_profile.py` (6 tests covering CRUD, key-value rules, stats updating, and cascade deletes).
 - Validated all 14 tests passing under Python 3.14.5 and formatting checking with Ruff.
+
+## 2026-06-28 — TASK-004 Midgard Runtime Process Model & IPC
+
+- Designed and implemented a multi-process architecture where the bot runtime executes in isolated child processes (`RuntimeEngine`), leaving the parent Studio GUI responsive.
+- Created `src/midgard/runtime/protocol.py` defining a length-prefixed JSON-over-TCP framing protocol to prevent packet fragmentation.
+- Created `src/midgard/runtime/engine.py` defining the autonomous engine executing a tick loop and reading commands non-blockingly via socket select.
+- Created `src/midgard/runtime/launcher.py` managing TCP binding, subprocess spawning with environmental PYTHONPATH injection, and connection handshaking.
+- Connected process termination safety checks inside the main application teardown lifecycle (`aboutToQuit` hook).
+- Added comprehensive unit and integration tests in `tests/test_runtime.py` covering message framing and full process start, command, and stop lifecycles.
+- Verified all 16 tests passing under Python 3.14.5 and Ruff check formatting validation.
