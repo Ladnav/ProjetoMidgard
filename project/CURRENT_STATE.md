@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-020 — Window Attachment and Binding by Process ID (PID).
+TASK-021 — OCR-based Character HP/SP status parsing.
 
 ## Present
 
@@ -22,7 +22,8 @@ TASK-020 — Window Attachment and Binding by Process ID (PID).
 - DPI-awareness configuration and 64-bit compatible HWND window discovery by title substring
 - Win32 keyboard and mouse emulation service (`Win32InputAdapter` via `SendInput` hardware scan codes and coordinates) and in-memory test adapter (`DummyInputAdapter`)
 - Client-to-screen coordinate converter using Win32 API (`ClientToScreen`) to support window-relative mouse actions
-- Autonomous `HealModule` analyzing captured screen pixels to trigger recovery actions respecting random human-like delays
+- Autonomous `HealModule` cropping HP/SP character status regions and executing template-matching character OCR to parse actual health ratios (supporting both HP/SP independently)
+- Zero-dependency `DigitRecognizer` resolving digit outputs (e.g. '120/150' or '90%') from binarized UI crops and computing exact health metrics
 - Autonomous `CombatModule` performing color-based target scanning (centroid detection of matching pixel clusters) and triggering mouse attack commands
 - Autonomous `NavigationModule` executing sequential waypoint walking loops via window client clicks and arrival timers
 - Autonomous `ConsumablesModule` evaluating duration intervals to recast buffs and use utility items
@@ -73,7 +74,7 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 - Ruff formatting check passed
 - Ruff lint check passed
-- pytest passed with 61 tests
+- pytest passed with 62 tests
 - SQLite theme persistence passed across application starts
 - SQLite character profiles CRUD, rules, cascading deletion, and stats tracking passed
 - Runtime launcher, TCP protocol packing, engine cycle commands, and graceful subprocess termination passed
@@ -88,6 +89,7 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 - Bezier path smoothing (start/end coverage, intermediate steps), randomized key hold times, engine death and disconnect alarm events, and GUI alarm handler display tests passed
 - A* path routing solvers (basic path, obstacle detours, blocked targets) and Evasion panic health hotkey actions tested and passed
 - OpenCV image Template Matching searches and threshold matching logic tested and passed
+- Digit character recognizer OCR image text extraction and value solvers tested and passed
 - Searchable diagnostics logs, text query matching, level filters, and active profile statistics page updates tested and passed
 - Executable compiler builder script (`build_executable.py`) successfully generated standalone executable binary `MidgardStudio.exe` at project root `dist/` directory
 - Win32 Process ID (PID) query functions, window handle (HWND) discovery by PID, and target selection UI list dialogs tested and passed
@@ -96,4 +98,4 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 ## Delivery state
 
-TASK-020 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-021 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

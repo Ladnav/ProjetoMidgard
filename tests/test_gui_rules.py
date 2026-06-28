@@ -41,8 +41,18 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     profiles_page.heal_enabled.setChecked(True)
     profiles_page.heal_hp_threshold.setValue(85)
     profiles_page.heal_hp_key.setCurrentText("F4")
-    profiles_page.heal_hp_x.setValue(220)
+    profiles_page.heal_hp_x.setValue(100)
     profiles_page.heal_hp_y.setValue(110)
+    profiles_page.heal_hp_w.setValue(60)
+    profiles_page.heal_hp_h.setValue(12)
+
+    profiles_page.heal_sp_enabled.setChecked(True)
+    profiles_page.heal_sp_threshold.setValue(40)
+    profiles_page.heal_sp_key.setCurrentText("F3")
+    profiles_page.heal_sp_x.setValue(100)
+    profiles_page.heal_sp_y.setValue(120)
+    profiles_page.heal_sp_w.setValue(60)
+    profiles_page.heal_sp_h.setValue(12)
 
     profiles_page.consumables_enabled.setChecked(True)
     profiles_page.consumables_text.setPlainText("berserk_potion,F5,180.0")
@@ -68,8 +78,18 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     assert healing_rules.get("heal.enabled") == "true"
     assert healing_rules.get("heal.hp_threshold") == "85"
     assert healing_rules.get("heal.hp_key") == "F4"
-    assert healing_rules.get("heal.hp_x") == "220"
+    assert healing_rules.get("heal.hp_x") == "100"
     assert healing_rules.get("heal.hp_y") == "110"
+    assert healing_rules.get("heal.hp_w") == "60"
+    assert healing_rules.get("heal.hp_h") == "12"
+
+    assert healing_rules.get("heal.sp_enabled") == "true"
+    assert healing_rules.get("heal.sp_threshold") == "40"
+    assert healing_rules.get("heal.sp_key") == "F3"
+    assert healing_rules.get("heal.sp_x") == "100"
+    assert healing_rules.get("heal.sp_y") == "120"
+    assert healing_rules.get("heal.sp_w") == "60"
+    assert healing_rules.get("heal.sp_h") == "12"
 
     consumables_rules = db_profile.rules.get("consumables", {})
     assert consumables_rules.get("consumables.enabled") == "true"

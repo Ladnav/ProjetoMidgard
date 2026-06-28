@@ -61,15 +61,12 @@ def test_profiles_page_picker_integration(tmp_path) -> None:
         MockPickDialog.return_value = mock_inst
 
         # 1. Trigger Healing Picker
-        profiles_page._pick_healing_pixel()
+        profiles_page._pick_hp_crop()
         app.processEvents()
 
         # Check that coordinates and expected color were updated
         assert profiles_page.heal_hp_x.value() == 42
         assert profiles_page.heal_hp_y.value() == 84
-        assert profiles_page.heal_expected_r.value() == 255
-        assert profiles_page.heal_expected_g.value() == 128
-        assert profiles_page.heal_expected_b.value() == 64
 
         # 2. Trigger Combat Picker
         profiles_page._pick_combat_color()

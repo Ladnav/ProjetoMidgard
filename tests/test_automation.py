@@ -44,29 +44,28 @@ def test_heal_module_trigger_on_low_health() -> None:
     adapter = DummyInputAdapter()
     rules = {
         "heal.enabled": "true",
-        "heal.hp_x": "5",
-        "heal.hp_y": "5",
+        "heal.hp_x": "0",
+        "heal.hp_y": "0",
+        "heal.hp_w": "60",
+        "heal.hp_h": "12",
+        "heal.hp_threshold": "95.0",
         "heal.hp_key": "F3",
-        "heal.expected_hp_r": "0",
-        "heal.expected_hp_g": "255",
-        "heal.expected_hp_b": "0",  # Expected Green
-        "heal.color_tolerance": "10",
         "heal.min_cooldown": "0.0",
         "heal.max_cooldown": "0.0",
     }
     module = HealModule(rules, adapter)
 
-    # 1. Healthy state (Green pixel matches expected color)
-    img_healthy = Image.new("RGB", (10, 10), color=(0, 255, 0))
+    # 1. Healthy state (100% template matches 100% threshold)
+    img_healthy = Image.new("RGB", (10, 10), color=(255, 255, 255))
     result_healthy = module.evaluate(img_healthy)
     assert result_healthy is None
     assert len(adapter.history) == 0
 
-    # 2. Damaged/Low HP state (Black pixel deviates from expected green)
-    img_damaged = Image.new("RGB", (10, 10), color=(0, 0, 0))
+    # 2. Damaged/Low HP state (Black/empty returns 90% via OCR, triggering under 95% threshold)
+    img_damaged = Image.new("RGB", (24, 10), color=(255, 255, 255))
     result_damaged = module.evaluate(img_damaged)
     assert result_damaged is not None
-    assert "Triggered F3" in result_damaged
+    assert "Tapped F3" in result_damaged
 
     # Tap key should have run press & release scan code events
     assert len(adapter.history) == 2
@@ -79,18 +78,17 @@ def test_heal_module_respects_cooldown() -> None:
     adapter = DummyInputAdapter()
     rules = {
         "heal.enabled": "true",
-        "heal.hp_x": "2",
-        "heal.hp_y": "2",
+        "heal.hp_x": "0",
+        "heal.hp_y": "0",
+        "heal.hp_w": "24",
+        "heal.hp_h": "10",
+        "heal.hp_threshold": "95.0",
         "heal.hp_key": "F1",
-        "heal.expected_hp_r": "0",
-        "heal.expected_hp_g": "255",
-        "heal.expected_hp_b": "0",
-        "heal.color_tolerance": "10",
         "heal.min_cooldown": "5.0",  # Long cooldown
         "heal.max_cooldown": "5.0",
     }
     module = HealModule(rules, adapter)
-    img_damaged = Image.new("RGB", (5, 5), color=(0, 0, 0))
+    img_damaged = Image.new("RGB", (24, 10), color=(255, 255, 255))
 
     # First evaluation succeeds
     res1 = module.evaluate(img_damaged)

@@ -84,7 +84,8 @@ class WindowListDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        from PySide6.QtWidgets import QListWidget, QListWidgetItem, QDialogButtonBox
+        from PySide6.QtWidgets import QDialogButtonBox, QListWidget, QListWidgetItem
+
         self.list_widget = QListWidget()
         for hwnd, pid, title in windows:
             # Display clearly matching PID and process window name

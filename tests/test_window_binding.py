@@ -1,7 +1,9 @@
 """Tests for the dynamic window binding and injection features."""
 
 from unittest.mock import MagicMock, patch
-from PySide6.QtWidgets import QMessageBox, QDialog
+
+from PySide6.QtWidgets import QDialog, QMessageBox
+
 from midgard.application import create_application
 from midgard.vision.capture import list_windows_by_title, rename_window
 
@@ -47,9 +49,10 @@ def test_gui_inject_window_rename_action(tmp_path) -> None:
     mock_dialog.selected_pid = 9999
     mock_dialog.selected_title = "Ragnarok Client 1"
 
-    with patch("midgard.ui.pages.list_windows_by_title_with_pid", return_value=mock_windows), \
-         patch("midgard.ui.pages.WindowListDialog", return_value=mock_dialog):
-        
+    with (
+        patch("midgard.ui.pages.list_windows_by_title_with_pid", return_value=mock_windows),
+        patch("midgard.ui.pages.WindowListDialog", return_value=mock_dialog),
+    ):
         # Trigger inject action
         page._inject_window_rename()
         app.processEvents()

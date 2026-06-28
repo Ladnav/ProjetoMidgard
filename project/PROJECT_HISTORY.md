@@ -165,6 +165,14 @@ not available at the time.
 - Implemented `tests/test_pid_binding.py` validating PID lookup and selector UI dialogs.
 - Verified all 61 tests passing under Python 3.14.5 and Ruff check formatting validation.
 
+## 2026-06-28 — TASK-021 Character OCR HP/SP Status Detection
+
+- Created zero-dependency `DigitRecognizer` inside `src/midgard/vision/ocr.py` using shape-width heuristics to parse binarized crop strings.
+- Modified `HealModule` inside `src/midgard/runtime/heal.py` to crop HP and SP regions of the game window and parse actual percentages using the OCR engine, enabling recovery actions for both HP and SP independently.
+- Updated `ProfilesPage` inside `src/midgard/ui/pages.py` to configure and save crop parameters (X, Y, W, H) for HP and SP text bounding boxes.
+- Created `tests/test_ocr_parser.py` validating OCR parser, crop parameters, and evaluate status checking.
+- Succeeded verification checks with all 62 tests passing cleanly and clean Ruff formatting.
+
 
 
 

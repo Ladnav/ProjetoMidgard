@@ -28,9 +28,7 @@ from midgard.ui.picker import PickDialog, WindowListDialog
 from midgard.ui.theme import Theme
 from midgard.vision.capture import (
     WindowCaptureService,
-    list_windows_by_title,
     list_windows_by_title_with_pid,
-    rename_window,
 )
 
 
@@ -718,7 +716,13 @@ class ProfilesPage(Page):
         tab = QWidget()
         layout = QFormLayout(tab)
 
-        self.heal_enabled = QCheckBox("Enable Healing")
+        self.heal_enabled = QCheckBox("Enable Healing & Recovery Module")
+        self.heal_min_cooldown = QDoubleSpinBox()
+        self.heal_min_cooldown.setRange(0.0, 10.0)
+        self.heal_max_cooldown = QDoubleSpinBox()
+        self.heal_max_cooldown.setRange(0.0, 10.0)
+
+        # HP Text crop Controls
         self.heal_hp_threshold = QSpinBox()
         self.heal_hp_threshold.setRange(1, 100)
         self.heal_hp_key = QComboBox()
@@ -728,46 +732,74 @@ class ProfilesPage(Page):
         self.heal_hp_x.setRange(0, 5000)
         self.heal_hp_y = QSpinBox()
         self.heal_hp_y.setRange(0, 5000)
+        self.heal_hp_w = QSpinBox()
+        self.heal_hp_w.setRange(5, 500)
+        self.heal_hp_w.setValue(60)
+        self.heal_hp_h = QSpinBox()
+        self.heal_hp_h.setRange(5, 500)
+        self.heal_hp_h.setValue(12)
 
-        self.heal_expected_r = QSpinBox()
-        self.heal_expected_r.setRange(0, 255)
-        self.heal_expected_g = QSpinBox()
-        self.heal_expected_g.setRange(0, 255)
-        self.heal_expected_b = QSpinBox()
-        self.heal_expected_b.setRange(0, 255)
+        # SP Text crop Controls
+        self.heal_sp_enabled = QCheckBox("Enable SP (Mana) Recovery")
+        self.heal_sp_threshold = QSpinBox()
+        self.heal_sp_threshold.setRange(1, 100)
+        self.heal_sp_key = QComboBox()
+        self.heal_sp_key.addItems([f"F{i}" for i in range(1, 11)])
 
-        self.heal_color_tolerance = QSpinBox()
-        self.heal_color_tolerance.setRange(0, 255)
+        self.heal_sp_x = QSpinBox()
+        self.heal_sp_x.setRange(0, 5000)
+        self.heal_sp_y = QSpinBox()
+        self.heal_sp_y.setRange(0, 5000)
+        self.heal_sp_w = QSpinBox()
+        self.heal_sp_w.setRange(5, 500)
+        self.heal_sp_w.setValue(60)
+        self.heal_sp_h = QSpinBox()
+        self.heal_sp_h.setRange(5, 500)
+        self.heal_sp_h.setValue(12)
 
-        self.heal_min_cooldown = QDoubleSpinBox()
-        self.heal_min_cooldown.setRange(0.0, 10.0)
-        self.heal_max_cooldown = QDoubleSpinBox()
-        self.heal_max_cooldown.setRange(0.0, 10.0)
-
+        # Build HP form section
         layout.addRow(self.heal_enabled)
         layout.addRow("HP Trigger Threshold (%)", self.heal_hp_threshold)
-        layout.addRow("Healing Potion Hotkey", self.heal_hp_key)
+        layout.addRow("HP Recovery Potion Key", self.heal_hp_key)
 
-        coord_layout = QHBoxLayout()
-        coord_layout.addWidget(QLabel("X:"))
-        coord_layout.addWidget(self.heal_hp_x)
-        coord_layout.addWidget(QLabel("Y:"))
-        coord_layout.addWidget(self.heal_hp_y)
-        self.heal_pick_btn = QPushButton("Pick Coords & Color")
-        self.heal_pick_btn.clicked.connect(self._pick_healing_pixel)
-        coord_layout.addWidget(self.heal_pick_btn)
-        layout.addRow("HP Bar Coordinates", coord_layout)
+        hp_coord_layout = QHBoxLayout()
+        hp_coord_layout.addWidget(QLabel("X:"))
+        hp_coord_layout.addWidget(self.heal_hp_x)
+        hp_coord_layout.addWidget(QLabel("Y:"))
+        hp_coord_layout.addWidget(self.heal_hp_y)
+        hp_coord_layout.addWidget(QLabel("W:"))
+        hp_coord_layout.addWidget(self.heal_hp_w)
+        hp_coord_layout.addWidget(QLabel("H:"))
+        hp_coord_layout.addWidget(self.heal_hp_h)
 
-        color_layout = QHBoxLayout()
-        color_layout.addWidget(QLabel("R:"))
-        color_layout.addWidget(self.heal_expected_r)
-        color_layout.addWidget(QLabel("G:"))
-        color_layout.addWidget(self.heal_expected_g)
-        color_layout.addWidget(QLabel("B:"))
-        color_layout.addWidget(self.heal_expected_b)
-        layout.addRow("Expected Active RGB Color", color_layout)
+        self.hp_pick_btn = QPushButton("Pick HP Box")
+        self.hp_pick_btn.clicked.connect(self._pick_hp_crop)
+        hp_coord_layout.addWidget(self.hp_pick_btn)
+        layout.addRow("HP Text Bounding Box", hp_coord_layout)
 
-        layout.addRow("Color Match Tolerance", self.heal_color_tolerance)
+        layout.addRow(QFrame())  # Visual separator
+
+        # Build SP form section
+        layout.addRow(self.heal_sp_enabled)
+        layout.addRow("SP Trigger Threshold (%)", self.heal_sp_threshold)
+        layout.addRow("SP Potion Key", self.heal_sp_key)
+
+        sp_coord_layout = QHBoxLayout()
+        sp_coord_layout.addWidget(QLabel("X:"))
+        sp_coord_layout.addWidget(self.heal_sp_x)
+        sp_coord_layout.addWidget(QLabel("Y:"))
+        sp_coord_layout.addWidget(self.heal_sp_y)
+        sp_coord_layout.addWidget(QLabel("W:"))
+        sp_coord_layout.addWidget(self.heal_sp_w)
+        sp_coord_layout.addWidget(QLabel("H:"))
+        sp_coord_layout.addWidget(self.heal_sp_h)
+
+        self.sp_pick_btn = QPushButton("Pick SP Box")
+        self.sp_pick_btn.clicked.connect(self._pick_sp_crop)
+        sp_coord_layout.addWidget(self.sp_pick_btn)
+        layout.addRow("SP Text Bounding Box", sp_coord_layout)
+
+        layout.addRow(QFrame())  # Visual separator
 
         cd_layout = QHBoxLayout()
         cd_layout.addWidget(QLabel("Min (s):"))
@@ -892,12 +924,21 @@ class ProfilesPage(Page):
         self.heal_enabled.setChecked(heal.get("heal.enabled", "false").lower() == "true")
         self.heal_hp_threshold.setValue(int(heal.get("heal.hp_threshold", "70")))
         self.heal_hp_key.setCurrentText(heal.get("heal.hp_key", "F1"))
+
         self.heal_hp_x.setValue(int(heal.get("heal.hp_x", "100")))
         self.heal_hp_y.setValue(int(heal.get("heal.hp_y", "50")))
-        self.heal_expected_r.setValue(int(heal.get("heal.expected_hp_r", "0")))
-        self.heal_expected_g.setValue(int(heal.get("heal.expected_hp_g", "255")))
-        self.heal_expected_b.setValue(int(heal.get("heal.expected_hp_b", "0")))
-        self.heal_color_tolerance.setValue(int(heal.get("heal.color_tolerance", "30")))
+        self.heal_hp_w.setValue(int(heal.get("heal.hp_w", "60")))
+        self.heal_hp_h.setValue(int(heal.get("heal.hp_h", "12")))
+
+        self.heal_sp_enabled.setChecked(heal.get("heal.sp_enabled", "false").lower() == "true")
+        self.heal_sp_threshold.setValue(int(heal.get("heal.sp_threshold", "50")))
+        self.heal_sp_key.setCurrentText(heal.get("heal.sp_key", "F2"))
+
+        self.heal_sp_x.setValue(int(heal.get("heal.sp_x", "100")))
+        self.heal_sp_y.setValue(int(heal.get("heal.sp_y", "66")))
+        self.heal_sp_w.setValue(int(heal.get("heal.sp_w", "60")))
+        self.heal_sp_h.setValue(int(heal.get("heal.sp_h", "12")))
+
         self.heal_min_cooldown.setValue(float(heal.get("heal.min_cooldown", "0.5")))
         self.heal_max_cooldown.setValue(float(heal.get("heal.max_cooldown", "0.8")))
 
@@ -958,20 +999,38 @@ class ProfilesPage(Page):
                 profile_id, "healing", "heal.hp_y", str(self.heal_hp_y.value())
             )
             self.profile_store.set_rule(
-                profile_id, "healing", "heal.expected_hp_r", str(self.heal_expected_r.value())
+                profile_id, "healing", "heal.hp_w", str(self.heal_hp_w.value())
             )
             self.profile_store.set_rule(
-                profile_id, "healing", "heal.expected_hp_g", str(self.heal_expected_g.value())
+                profile_id, "healing", "heal.hp_h", str(self.heal_hp_h.value())
             )
-            self.profile_store.set_rule(
-                profile_id, "healing", "heal.expected_hp_b", str(self.heal_expected_b.value())
-            )
+
+            # Save SP Rules
             self.profile_store.set_rule(
                 profile_id,
                 "healing",
-                "heal.color_tolerance",
-                str(self.heal_color_tolerance.value()),
+                "heal.sp_enabled",
+                str(self.heal_sp_enabled.isChecked()).lower(),
             )
+            self.profile_store.set_rule(
+                profile_id, "healing", "heal.sp_threshold", str(self.heal_sp_threshold.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "healing", "heal.sp_key", self.heal_sp_key.currentText()
+            )
+            self.profile_store.set_rule(
+                profile_id, "healing", "heal.sp_x", str(self.heal_sp_x.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "healing", "heal.sp_y", str(self.heal_sp_y.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "healing", "heal.sp_w", str(self.heal_sp_w.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "healing", "heal.sp_h", str(self.heal_sp_h.value())
+            )
+
             self.profile_store.set_rule(
                 profile_id, "healing", "heal.min_cooldown", str(self.heal_min_cooldown.value())
             )
@@ -1080,8 +1139,8 @@ class ProfilesPage(Page):
                 return screen.grabWindow(0)
             return None
 
-    def _pick_healing_pixel(self) -> None:
-        """Show color picker to capture HP coordinates and expected color."""
+    def _pick_hp_crop(self) -> None:
+        """Capture the top-left coordinate of the HP text bounding box."""
         pixmap = self._capture_game_window()
         if pixmap is None:
             return
@@ -1090,9 +1149,17 @@ class ProfilesPage(Page):
             if dialog.selected_x is not None:
                 self.heal_hp_x.setValue(dialog.selected_x)
                 self.heal_hp_y.setValue(dialog.selected_y)
-                self.heal_expected_r.setValue(dialog.selected_r)
-                self.heal_expected_g.setValue(dialog.selected_g)
-                self.heal_expected_b.setValue(dialog.selected_b)
+
+    def _pick_sp_crop(self) -> None:
+        """Capture the top-left coordinate of the SP text bounding box."""
+        pixmap = self._capture_game_window()
+        if pixmap is None:
+            return
+        dialog = PickDialog(pixmap, self)
+        if dialog.exec() == QDialog.Accepted:
+            if dialog.selected_x is not None:
+                self.heal_sp_x.setValue(dialog.selected_x)
+                self.heal_sp_y.setValue(dialog.selected_y)
 
     def _pick_combat_color(self) -> None:
         """Show color picker to capture combat target color."""
@@ -1107,7 +1174,7 @@ class ProfilesPage(Page):
                 self.combat_target_b.setValue(dialog.selected_b)
 
     def _inject_window_rename(self) -> None:
-        """Find windows matching search text, and bind selected process ID (PID) to character profile."""
+        """Find windows by title prefix, and bind selected process ID (PID) to profile."""
         search_query = self.window_title_input.text().strip()
         # Fallback to search query parser in case of existing "Ragnarok [PID: 123]" string
         if " [pid: " in search_query.lower():
@@ -1129,7 +1196,9 @@ class ProfilesPage(Page):
         # Find matching window handles with their respective process IDs (PIDs)
         windows = list_windows_by_title_with_pid(search_query)
         if not windows:
-            QMessageBox.warning(self, "Not Found", f"No open windows found matching: '{search_query}'")
+            QMessageBox.warning(
+                self, "Not Found", f"No open windows found matching: '{search_query}'"
+            )
             return
 
         # Trigger selection Dialog
@@ -1143,5 +1212,6 @@ class ProfilesPage(Page):
             QMessageBox.information(
                 self,
                 "Success",
-                f"Successfully injected profile '{profile.name}'!\nBound to Window PID: {dialog.selected_pid}",
+                f"Successfully injected profile '{profile.name}'!\n"
+                f"Bound to Window PID: {dialog.selected_pid}",
             )
