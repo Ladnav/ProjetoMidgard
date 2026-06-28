@@ -56,3 +56,12 @@ not available at the time.
 - Connected process termination safety checks inside the main application teardown lifecycle (`aboutToQuit` hook).
 - Added comprehensive unit and integration tests in `tests/test_runtime.py` covering message framing and full process start, command, and stop lifecycles.
 - Verified all 16 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+## 2026-06-28 — TASK-005 Midgard Vision Foundation
+
+- Designed and implemented the Windows GDI screen capture pipeline using native ctypes integration without requiring extra dependencies.
+- Created `src/midgard/vision/capture.py` containing `WindowCaptureService` (BitBlt capture to PIL Image) and `find_window_by_title` (EnumWindows title substring search).
+- Added DPI-awareness setup (`SetProcessDpiAwareness`) to prevent OS-level scaling alignment issues.
+- Fixed 64-bit calling convention issues in `EnumWindows` using `ctypes.c_void_p` for HWND pointers and fixed callback garbage collection bugs.
+- Created `tests/test_vision.py` containing unit tests with complete mock GDI pipelines to allow running GDI tests inside headless Sessions (Session 0) and platform checks to safely skip GDI capture on non-Windows CI runners.
+- Verified all 22 tests passing under Python 3.14.5 and Ruff check formatting validation.

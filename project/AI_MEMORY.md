@@ -14,6 +14,7 @@ does not override, explicit user instructions or approved task decisions.
 - Configuration will be managed through the UI.
 - Each character has an independent profile stored in the SQLite database (`profiles`, `profile_rules`, `profile_stats` tables).
 - The bot execution engine uses a multi-process model: the Studio UI launches and manages independent `RuntimeEngine` subprocesses via `RuntimeLauncher`.
+- Screen capture is handled by a Windows GDI BitBlt pipeline (`WindowCaptureService` via ctypes) returning Pillow Image buffers.
 - Documentation is part of the product and must track implementation.
 - The engineering workflow uses uv (or fallback pip), Ruff, pytest, Semantic Versioning, and GitHub Actions.
 - Midgard Studio 0.2.0 has seven page shells, light/dark themes, SQLite-backed preferences, ProfileStore backend, and basic application logging.
@@ -35,8 +36,8 @@ does not override, explicit user instructions or approved task decisions.
 ## Current scope boundary
 
 The graphical application foundation is authorized. Game automation, gameplay runtime behavior,
-screen capture, computer vision, OCR, input automation, rule engines, bot logic, plugins, and AI
-features remain prohibited unless a later task explicitly approves them.
+computer vision, OCR, input automation, rule engines, bot logic, plugins, and AI
+features remain prohibited unless a later task explicitly approves them. (Window capture is approved as a library foundation.)
 
 ## Open decisions
 

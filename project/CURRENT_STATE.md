@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-004 — Midgard Runtime Process Model and IPC implementation.
+TASK-005 — Midgard Vision Foundation implementation.
 
 ## Present
 
@@ -18,18 +18,19 @@ TASK-004 — Midgard Runtime Process Model and IPC implementation.
 - SQLite database schema and `ProfileStore` manager for Character Profiles (supporting cascading deletes on rules/stats)
 - Multi-process runtime architecture with `RuntimeLauncher` spawning `RuntimeEngine` subprocesses
 - TCP-based IPC loopback protocol with JSON event framing and command control
+- Windows GDI screen capture service (`WindowCaptureService`) using ctypes to capture target window client areas
+- DPI-awareness configuration and 64-bit compatible HWND window discovery by title substring
 - Console and rotating-file application logging
 - Application version 0.2.0 displayed on the About page
 - uv dependency declaration and lock-file workflow
 - Ruff formatter and linter configuration
-- pytest coverage for package metadata, settings persistence, navigation, themes, logging, character profiles, and runtime/IPC
-- GitHub Actions quality workflow for Ubuntu Latest
+- pytest coverage for package metadata, settings persistence, navigation, themes, logging, character profiles, runtime/IPC, and GDI screen capture
+- GitHub Actions quality workflow for Ubuntu Latest (selectively skipping Windows GDI capture tests)
 - Bootstrap, contributor, licensing, changelog, and project-memory documentation
 
 ## Not present
 
 - Gameplay or automation runtime
-- Screen capture
 - Input automation
 - Automation or gameplay behavior
 - Computer vision or OCR
@@ -53,13 +54,14 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 - Ruff formatting check passed
 - Ruff lint check passed
-- pytest passed with 16 tests
+- pytest passed with 22 tests
 - SQLite theme persistence passed across application starts
 - SQLite character profiles CRUD, rules, cascading deletion, and stats tracking passed
 - Runtime launcher, TCP protocol packing, engine cycle commands, and graceful subprocess termination passed
+- Windows GDI screen capture, DPI-awareness, 64-bit title discovery, and mock GDI fallback tests passed
 - Native Windows launch and dark/light theme screenshots were visually inspected
 - The uv lock resolves the full PySide6 dependency for CI installation
 
 ## Delivery state
 
-TASK-004 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-005 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
