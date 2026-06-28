@@ -42,6 +42,7 @@ class RuntimeEngine:
         self.combat_module: CombatModule | None = None
         self.navigation_module: NavigationModule | None = None
         self.consumables_module: ConsumablesModule | None = None
+        self.capture_failures = 0
 
         # Stats
         self.xp_gained = 0
@@ -204,10 +205,12 @@ class RuntimeEngine:
         self.xp_gained += 15
         self.loot_collected += 1
 
+        hp_pct = 92
         # Run GDI Screen Capture and Modules
         if self.capture_service:
             try:
                 image = self.capture_service.capture()
+                self.capture_failures = 0
 
                 # Evaluate modules based on priority:
                 # 1. Heal (Highest Priority)
@@ -269,7 +272,44 @@ class RuntimeEngine:
                                 "level": "INFO",
                             },
                         )
+
+                # Calculate dynamic HP status percentage
+                if self.heal_module and self.heal_module.enabled:
+                    try:
+                        pixel = image.getpixel((self.heal_module.hp_x, self.heal_module.hp_y))
+                        r, g, b = pixel[0], pixel[1], pixel[2]
+                        # HP bar is dark/black suggesting character death
+                        if r < 20 and g < 20 and b < 20:
+                            hp_pct = 0
+                        else:
+                            distance = (
+                                (r - self.heal_module.expected_hp_r) ** 2
+                                + (g - self.heal_module.expected_hp_g) ** 2
+                                + (b - self.heal_module.expected_hp_b) ** 2
+                            ) ** 0.5
+                            if distance > self.heal_module.color_tolerance:
+                                hp_pct = int(self.heal_module.hp_threshold - 10)
+                            else:
+                                hp_pct = 92
+                    except IndexError:
+                        pass
             except Exception as e:
+                self.capture_failures += 1
+                if self.capture_failures == 5:
+                    try:
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "alarm",
+                                "alarm_type": "disconnect",
+                                "message": (
+                                    f"Game client disconnected (failures: {self.capture_failures})."
+                                ),
+                            },
+                        )
+                    except OSError:
+                        pass
+
                 # Log any runtime capture / evaluation warnings
                 try:
                     send_message(
@@ -283,10 +323,24 @@ class RuntimeEngine:
                 except OSError:
                     pass
 
+        # Trigger death alarm event if hp_pct hits 0
+        if hp_pct == 0:
+            try:
+                send_message(
+                    self._sock,
+                    {
+                        "type": "alarm",
+                        "alarm_type": "death",
+                        "message": "Character death detected! HP is 0%.",
+                    },
+                )
+            except OSError:
+                pass
+
         status_msg = {
             "type": "status",
             "profile_id": self.profile_id,
-            "hp_pct": 92,
+            "hp_pct": hp_pct,
             "sp_pct": 74,
             "xp_gained": self.xp_gained,
             "loot_collected": self.loot_collected,

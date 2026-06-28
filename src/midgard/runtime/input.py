@@ -2,6 +2,8 @@
 
 import abc
 import ctypes
+import random
+import time
 
 # Win32 input simulation constants and structures
 KEYEVENTF_KEYUP = 0x0002
@@ -63,6 +65,38 @@ class POINT(ctypes.Structure):
     _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
 
 
+def generate_bezier_path(
+    start: tuple[int, int], end: tuple[int, int], steps: int = 15
+) -> list[tuple[int, int]]:
+    """Generate smooth cursor coordinates along a cubic Bezier curve."""
+
+    x0, y0 = start
+    x3, y3 = end
+
+    # Return end point if start/end are too close
+    distance = ((x3 - x0) ** 2 + (y3 - y0) ** 2) ** 0.5
+    if distance < 5:
+        return [end]
+
+    # Generate random control points for realistic hand instability
+    ctrl_offset_x = (x3 - x0) * 0.25
+    ctrl_offset_y = (y3 - y0) * 0.25
+
+    x1 = x0 + ctrl_offset_x + random.uniform(-20, 20)
+    y1 = y0 + ctrl_offset_y + random.uniform(-20, 20)
+
+    x2 = x3 - ctrl_offset_x + random.uniform(-20, 20)
+    y2 = y3 - ctrl_offset_y + random.uniform(-20, 20)
+
+    path = []
+    for i in range(steps + 1):
+        t = i / steps
+        xt = (1 - t) ** 3 * x0 + 3 * (1 - t) ** 2 * t * x1 + 3 * (1 - t) * t**2 * x2 + t**3 * x3
+        yt = (1 - t) ** 3 * y0 + 3 * (1 - t) ** 2 * t * y1 + 3 * (1 - t) * t**2 * y2 + t**3 * y3
+        path.append((int(xt), int(yt)))
+    return path
+
+
 class BaseInputAdapter(abc.ABC):
     """Abstract interface for simulating keyboard and mouse actions."""
 
@@ -77,8 +111,9 @@ class BaseInputAdapter(abc.ABC):
         pass
 
     def tap_key(self, scan_code: int) -> None:
-        """Tap a key (press and release)."""
+        """Tap a key (press and release) with a randomized human-like hold time."""
         self.press_key(scan_code)
+        time.sleep(random.uniform(0.04, 0.09))
         self.release_key(scan_code)
 
     @abc.abstractmethod
@@ -147,32 +182,43 @@ class Win32InputAdapter(BaseInputAdapter):
         ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
 
     def move_mouse_relative(self, hwnd: int, client_x: int, client_y: int) -> None:
-        """Move the mouse relative to the client area of a window."""
-        point = POINT(client_x, client_y)
-        # Convert client point to screen coordinates
-        ctypes.windll.user32.ClientToScreen(hwnd, ctypes.pointer(point))
+        """Move the mouse relative to the client area using a smooth Bezier path."""
+        # Get current cursor position on the screen
+        cursor = POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.pointer(cursor))
+        start_pos = (cursor.x, cursor.y)
+
+        # Convert target client coordinates to screen coordinates
+        target_point = POINT(client_x, client_y)
+        ctypes.windll.user32.ClientToScreen(hwnd, ctypes.pointer(target_point))
+        end_pos = (target_point.x, target_point.y)
 
         # Get system screen resolution
         width = ctypes.windll.user32.GetSystemMetrics(0)
         height = ctypes.windll.user32.GetSystemMetrics(1)
 
-        # Map to absolute 65535 grid
-        dx = int((point.x * 65535) / (width - 1)) if width > 1 else 0
-        dy = int((point.y * 65535) / (height - 1)) if height > 1 else 0
+        # Generate smooth trajectory path
+        path = generate_bezier_path(start_pos, end_pos, steps=10)
 
-        mi = MOUSEINPUT(
-            dx=dx,
-            dy=dy,
-            mouseData=0,
-            dwFlags=MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
-            time=0,
-            dwExtraInfo=None,
-        )
-        inp = INPUT(type=INPUT_MOUSE, ii=INPUT_UNION(mi=mi))
-        ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
+        # Perform step-by-step movements along the curve
+        for pt_x, pt_y in path:
+            dx = int((pt_x * 65535) / (width - 1)) if width > 1 else 0
+            dy = int((pt_y * 65535) / (height - 1)) if height > 1 else 0
+
+            mi = MOUSEINPUT(
+                dx=dx,
+                dy=dy,
+                mouseData=0,
+                dwFlags=MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
+                time=0,
+                dwExtraInfo=None,
+            )
+            inp = INPUT(type=INPUT_MOUSE, ii=INPUT_UNION(mi=mi))
+            ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
+            time.sleep(random.uniform(0.002, 0.005))
 
     def click_mouse(self, button: str = "left") -> None:
-        """Trigger a mouse click (down then up)."""
+        """Trigger a mouse click (down then up) with a randomized human-like hold time."""
         if button == "left":
             down_flag = MOUSEEVENTF_LEFTDOWN
             up_flag = MOUSEEVENTF_LEFTUP
@@ -184,6 +230,9 @@ class Win32InputAdapter(BaseInputAdapter):
         mi_down = MOUSEINPUT(dx=0, dy=0, mouseData=0, dwFlags=down_flag, time=0, dwExtraInfo=None)
         inp_down = INPUT(type=INPUT_MOUSE, ii=INPUT_UNION(mi=mi_down))
         ctypes.windll.user32.SendInput(1, ctypes.byref(inp_down), ctypes.sizeof(inp_down))
+
+        # Human-like click hold delay
+        time.sleep(random.uniform(0.04, 0.09))
 
         # Up event
         mi_up = MOUSEINPUT(dx=0, dy=0, mouseData=0, dwFlags=up_flag, time=0, dwExtraInfo=None)

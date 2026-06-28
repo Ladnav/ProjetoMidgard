@@ -123,3 +123,13 @@ not available at the time.
 - Handled game client window captures using GDI fallback to full screen monitor snapshot if the window discovery fails.
 - Added comprehensive unit and integration tests in `tests/test_gui_picker.py` asserting dialog clicks and form updates.
 - Verified all 41 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+## 2026-06-28 — TASK-013 Antidetection Protections & Alarm Notification System
+
+- Implemented cubic Bezier mouse curve trajectories in `src/midgard/runtime/input.py` to move the cursor smoothly with human-like acceleration and micro-sleeps.
+- Added randomized key and mouse button press-and-hold durations (40ms to 90ms) mimicking human typing behavior.
+- Added background engine alarms via IPC TCP for character death (HP=0%) and window client capture failures (disconnected/crashed client).
+- Implemented visual indicators, red console warnings, and audio alerts (`QApplication.beep()`) in PySide6 `RuntimePage` to signal engine alarms.
+- Created `tests/test_antidetect_alarms.py` to verify Bezier calculation, hold time delays, and alarm notifications.
+- Verified all 48 tests passing under Python 3.14.5 and Ruff format validation.
+

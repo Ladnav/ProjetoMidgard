@@ -129,6 +129,7 @@ class RuntimeWorker(QThread):
 
     log_received = Signal(str, str)  # message, level
     status_received = Signal(dict)
+    alarm_received = Signal(str, str)  # alarm_type, message
     finished = Signal()
 
     def __init__(self, launcher: RuntimeLauncher) -> None:
@@ -145,6 +146,8 @@ class RuntimeWorker(QThread):
                         self.log_received.emit(event["message"], event.get("level", "INFO"))
                     elif event["type"] == "status":
                         self.status_received.emit(event)
+                    elif event["type"] == "alarm":
+                        self.alarm_received.emit(event["alarm_type"], event["message"])
             except Exception:
                 pass
         self.finished.emit()
@@ -274,6 +277,7 @@ class RuntimePage(Page):
             self.worker = RuntimeWorker(self.launcher)
             self.worker.log_received.connect(self._on_log_received)
             self.worker.status_received.connect(self._on_status_received)
+            self.worker.alarm_received.connect(self._on_alarm_received)
             self.worker.finished.connect(self._on_worker_finished)
             self.worker.start()
         except Exception as e:
@@ -331,6 +335,27 @@ class RuntimePage(Page):
         self.stop_btn.setEnabled(False)
         self.profile_combo.setEnabled(True)
         self.terminal.append(">>> Engine launcher process terminated.")
+
+    def _on_alarm_received(self, alarm_type: str, message: str) -> None:
+        """Handle critical alarm events from the runtime engine."""
+        from PySide6.QtWidgets import QApplication
+
+        # Play system audio alert
+        QApplication.beep()
+
+        # Format alert in the terminal with red HTML styling
+        alarm_html = (
+            f'<span style="color:#ef4444; font-weight:bold;">'
+            f"\u26a0 ALARM [{alarm_type.upper()}]: {message}</span>"
+        )
+        self.terminal.append(alarm_html)
+
+        # Flash the status label red
+        self.status_lbl.setStyleSheet("color: #ef4444; font-weight: bold;")
+        if alarm_type == "death":
+            self.status_lbl.setText("Status: 💀 CHARACTER DEATH DETECTED")
+        elif alarm_type == "disconnect":
+            self.status_lbl.setText("Status: ⚡ CLIENT DISCONNECTED")
 
     def _cleanup_launcher(self) -> None:
         """Clean up the worker thread and terminate launcher process."""
