@@ -83,6 +83,15 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     profiles_page.loot_color_tolerance.setValue(10)
     profiles_page.loot_cooldown.setValue(2.5)
 
+    # Edit Security rules in UI
+    profiles_page.sec_enabled.setChecked(True)
+    profiles_page.sec_templates_dir.setText("templates/security/")
+    profiles_page.sec_threshold.setValue(0.9)
+    sec_idx = profiles_page.sec_panic_action.findData("teleport")
+    if sec_idx >= 0:
+        profiles_page.sec_panic_action.setCurrentIndex(sec_idx)
+    profiles_page.sec_panic_hotkey.setText("F11")
+
     # Save via GUI
     profiles_page._save_profile_rules()
     app.processEvents()
@@ -136,6 +145,13 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     navigation_rules = db_profile.rules.get("navigation", {})
     assert navigation_rules.get("navigation.enabled") == "true"
     assert navigation_rules.get("navigation.waypoints") == "150,150,2.5;300,300,5.0"
+
+    security_rules = db_profile.rules.get("security", {})
+    assert security_rules.get("security.enabled") == "true"
+    assert security_rules.get("security.templates_dir") == "templates/security/"
+    assert security_rules.get("security.threshold") == "0.9"
+    assert security_rules.get("security.panic_action") == "teleport"
+    assert security_rules.get("security.panic_hotkey") == "F11"
 
     # Close resources
     window.close()

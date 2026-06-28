@@ -89,6 +89,11 @@ class RuntimeEngine:
                 from midgard.runtime.loot import LootModule
                 self.loot_module = LootModule(looting_rules, self.input_adapter)
 
+                # Initialize anomaly security rules dict
+                security_rules = profile.rules.get("security", {})
+                from midgard.runtime.anomaly import AnomalyModule
+                self.anomaly_module = AnomalyModule(security_rules, self.input_adapter)
+
                 # Initialize combat rules dict
                 combat_rules = profile.rules.get("combat", {})
 
@@ -298,7 +303,32 @@ class RuntimeEngine:
                 # 5. Navigation (Lowest Priority)
                 triggered_action = False
 
-                if self.heal_module:
+                # 1. Anomaly Security detection (Highest Priority)
+                if hasattr(self, "anomaly_module") and self.anomaly_module:
+                    anomaly_log = self.anomaly_module.evaluate(image)
+                    if anomaly_log:
+                        triggered_action = True
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "log",
+                                "message": anomaly_log,
+                                "level": "CRITICAL",
+                            },
+                        )
+                        # Fire visual/audio alarm event
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "alarm",
+                                "alarm_type": "anomaly",
+                                "message": anomaly_log,
+                            },
+                        )
+                        # Pause loop execution for security
+                        self.active = False
+
+                if not triggered_action and self.heal_module:
                     heal_log = self.heal_module.evaluate(image)
                     if heal_log:
                         triggered_action = True

@@ -671,12 +671,12 @@ class ProfilesPage(Page):
         self.tab_widget = QTabWidget()
         self.card_layout.addWidget(self.tab_widget)
 
-        # Initialize Forms for tabs
         self._init_healing_tab()
         self._init_consumables_tab()
         self._init_looting_tab()
         self._init_combat_tab()
         self._init_navigation_tab()
+        self._init_security_tab()
 
         # 3. Save Button
         self.save_button = QPushButton("Save Profile Rules")
@@ -1001,6 +1001,36 @@ class ProfilesPage(Page):
 
         self.tab_widget.addTab(tab, "Navigation")
 
+    def _init_security_tab(self) -> None:
+        tab = QWidget()
+        layout = QFormLayout(tab)
+
+        self.sec_enabled = QCheckBox("Enable Anti-Detection & Captcha Scanner")
+        self.sec_templates_dir = QLineEdit()
+        self.sec_templates_dir.setPlaceholderText("e.g. templates/security/")
+        
+        self.sec_threshold = QDoubleSpinBox()
+        self.sec_threshold.setRange(0.1, 1.0)
+        self.sec_threshold.setValue(0.85)
+        self.sec_threshold.setSingleStep(0.05)
+
+        self.sec_panic_action = QComboBox()
+        self.sec_panic_action.addItem("Only Audio/Visual Alarm Notification", "alarm_only")
+        self.sec_panic_action.addItem("Press Teleport Hotkey", "teleport")
+        self.sec_panic_action.addItem("Force Quit Client (ALT+F4)", "logout")
+
+        self.sec_panic_hotkey = QLineEdit()
+        self.sec_panic_hotkey.setText("F12")
+        self.sec_panic_hotkey.setPlaceholderText("e.g. F12")
+
+        layout.addRow(self.sec_enabled)
+        layout.addRow("Captcha Templates Directory", self.sec_templates_dir)
+        layout.addRow("Detection Threshold", self.sec_threshold)
+        layout.addRow("Panic Action Response", self.sec_panic_action)
+        layout.addRow("Teleport Panic Hotkey", self.sec_panic_hotkey)
+
+        self.tab_widget.addTab(tab, "Security")
+
     def _load_profile_rules(self) -> None:
         """Populate rule form fields with values from database or fallbacks to defaults."""
         profile_id = self.profile_combo.currentData()
@@ -1085,6 +1115,17 @@ class ProfilesPage(Page):
         nav = rules.get("navigation", {})
         self.nav_enabled.setChecked(nav.get("navigation.enabled", "false").lower() == "true")
         self.nav_waypoints_text.setPlainText(nav.get("navigation.waypoints", ""))
+
+        # Load Security rules (TASK-025)
+        sec = rules.get("security", {})
+        self.sec_enabled.setChecked(sec.get("security.enabled", "false").lower() == "true")
+        self.sec_templates_dir.setText(sec.get("security.templates_dir", ""))
+        self.sec_threshold.setValue(float(sec.get("security.threshold", "0.85")))
+        
+        sec_idx = self.sec_panic_action.findData(sec.get("security.panic_action", "alarm_only"))
+        if sec_idx >= 0:
+            self.sec_panic_action.setCurrentIndex(sec_idx)
+        self.sec_panic_hotkey.setText(sec.get("security.panic_hotkey", "F12"))
 
     def _save_profile_rules(self) -> None:
         """Persist rule configuration fields to the SQLite profile database."""
@@ -1258,6 +1299,23 @@ class ProfilesPage(Page):
                 "navigation",
                 "navigation.waypoints",
                 self.nav_waypoints_text.toPlainText().strip(),
+            )
+
+            # Save Security rules (TASK-025)
+            self.profile_store.set_rule(
+                profile_id, "security", "security.enabled", str(self.sec_enabled.isChecked()).lower()
+            )
+            self.profile_store.set_rule(
+                profile_id, "security", "security.templates_dir", self.sec_templates_dir.text().strip()
+            )
+            self.profile_store.set_rule(
+                profile_id, "security", "security.threshold", str(self.sec_threshold.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "security", "security.panic_action", self.sec_panic_action.currentData()
+            )
+            self.profile_store.set_rule(
+                profile_id, "security", "security.panic_hotkey", self.sec_panic_hotkey.text().strip()
             )
 
             QMessageBox.information(self, "Success", "Profile automation rules saved successfully.")
