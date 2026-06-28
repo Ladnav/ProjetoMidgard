@@ -11,6 +11,7 @@ from midgard.profile import ProfileStore
 from midgard.runtime.combat import CombatModule
 from midgard.runtime.heal import HealModule
 from midgard.runtime.input import DummyInputAdapter, Win32InputAdapter
+from midgard.runtime.navigation import NavigationModule
 from midgard.runtime.protocol import recv_message, send_message
 from midgard.vision.capture import WindowCaptureService
 
@@ -38,6 +39,7 @@ class RuntimeEngine:
         self.capture_service: WindowCaptureService | None = None
         self.heal_module: HealModule | None = None
         self.combat_module: CombatModule | None = None
+        self.navigation_module: NavigationModule | None = None
 
         # Stats
         self.xp_gained = 0
@@ -69,11 +71,17 @@ class RuntimeEngine:
                 # Initialize combat rules dict
                 combat_rules = profile.rules.get("combat", {})
 
+                # Initialize navigation rules dict
+                nav_rules = profile.rules.get("navigation", {})
+
                 # Find and initialize WindowCaptureService if window_title is set
                 try:
                     self.capture_service = WindowCaptureService.from_title(profile.window_title)
                     self.combat_module = CombatModule(
                         combat_rules, self.input_adapter, self.capture_service.hwnd
+                    )
+                    self.navigation_module = NavigationModule(
+                        nav_rules, self.input_adapter, self.capture_service.hwnd
                     )
                     window_log = (
                         f"Connected to game window '{profile.window_title}' "
@@ -195,10 +203,16 @@ class RuntimeEngine:
             try:
                 image = self.capture_service.capture()
 
-                # Evaluate Heal Module
+                # Evaluate modules based on priority:
+                # 1. Heal (Highest Priority)
+                # 2. Combat (Medium Priority)
+                # 3. Navigation (Lowest Priority)
+                triggered_action = False
+
                 if self.heal_module:
                     heal_log = self.heal_module.evaluate(image)
                     if heal_log:
+                        triggered_action = True
                         send_message(
                             self._sock,
                             {
@@ -208,15 +222,29 @@ class RuntimeEngine:
                             },
                         )
 
-                # Evaluate Combat Module
-                if self.combat_module:
+                # Only combat if no healing triggered
+                if not triggered_action and self.combat_module:
                     combat_log = self.combat_module.evaluate(image)
                     if combat_log:
+                        triggered_action = True
                         send_message(
                             self._sock,
                             {
                                 "type": "log",
                                 "message": combat_log,
+                                "level": "INFO",
+                            },
+                        )
+
+                # Only navigate if no healing or combat action triggered
+                if not triggered_action and self.navigation_module:
+                    nav_log = self.navigation_module.evaluate(image)
+                    if nav_log:
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "log",
+                                "message": nav_log,
                                 "level": "INFO",
                             },
                         )

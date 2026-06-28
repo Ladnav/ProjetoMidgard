@@ -83,3 +83,11 @@ not available at the time.
 - Integrated the `CombatModule` into the `RuntimeEngine` tick loop alongside `HealModule`, sharing the same screen capture image to conserve system resources.
 - Added comprehensive unit tests in `tests/test_combat.py` verifying Dummy adapter mouse event recording, grid target finding, centroid math accuracy, and combat action cooldown windows.
 - Verified all 30 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+## 2026-06-28 — TASK-008 Midgard Waypoint Navigation & Priority Loop
+
+- Created `NavigationModule` in `src/midgard/runtime/navigation.py` supporting coordinate sequence parsing (format: `x,y,wait;x,y,wait`) and sequential index walk loops using relative mouse click triggers.
+- Integrated `NavigationModule` into the `RuntimeEngine` lifecycle and configured it to load path configurations from the profile's SQLite rules.
+- Implemented the priority evaluation hierarchy (Heal > Combat > Navigation) inside `RuntimeEngine._tick` to prevent navigation clicks from interrupting critical heal triggers or combat target attacks.
+- Added comprehensive unit tests in `tests/test_navigation.py` validating waypoint coordinate parsing, sequential walk index increments, cooldown arrival timers, and priority loop evaluation states.
+- Verified all 34 tests passing under Python 3.14.5 and Ruff check formatting validation.
