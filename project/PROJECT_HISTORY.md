@@ -38,3 +38,11 @@ not available at the time.
 - Preserved the explicit exclusion of automation and gameplay runtime behavior.
 - Validated eight tests on Python 3.12.13 and visually inspected both supported themes.
 - Prepared the combined TASK-001B and TASK-002 foundation for the repository's first commit.
+
+## 2026-06-28 — TASK-003 Character Profiles SQLite Schema
+
+- Designed and implemented the relational SQLite schema for Character Profiles, including tables for profiles, rules (by category), and stats.
+- Created `src/midgard/profile.py` containing the `Profile` and `ProfileStats` data models, and the `ProfileStore` data access layer.
+- Hooked the database connection initialization and cleanup for `ProfileStore` into the main application bootstrap process in `src/midgard/application.py`.
+- Added comprehensive unit test coverage in `tests/test_profile.py` (6 tests covering CRUD, key-value rules, stats updating, and cascade deletes).
+- Validated all 14 tests passing under Python 3.14.5 and formatting checking with Ruff.

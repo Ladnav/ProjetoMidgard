@@ -7,16 +7,15 @@ does not override, explicit user instructions or approved task decisions.
 
 - The project is named Project Midgard.
 - The repository is the permanent project memory.
-- Python 3.12 is the approved primary language version.
+- Python 3.12/3.14 is the approved primary language version.
 - The executable graphical foundation is Midgard Studio, built with PySide6.
 - SQLite is the approved embedded database.
 - Communication should be event-oriented where appropriate; no mechanism is selected.
 - Configuration will be managed through the UI.
-- Each character will have an independent profile.
+- Each character has an independent profile stored in the SQLite database (`profiles`, `profile_rules`, `profile_stats` tables).
 - Documentation is part of the product and must track implementation.
-- The engineering workflow uses uv, Ruff, pytest, Semantic Versioning, and GitHub Actions.
-- Midgard Studio 0.2.0 has seven page shells, light/dark themes, SQLite-backed preferences, and
-  basic application logging.
+- The engineering workflow uses uv (or fallback pip), Ruff, pytest, Semantic Versioning, and GitHub Actions.
+- Midgard Studio 0.2.0 has seven page shells, light/dark themes, SQLite-backed preferences, ProfileStore backend, and basic application logging.
 - The Runtime page is a placeholder and contains no runtime logic.
 - Changes must not be merged automatically into `main`.
 

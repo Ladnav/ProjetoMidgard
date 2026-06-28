@@ -9,13 +9,14 @@ only: none are designed or implemented in the current foundation.
 
 ## Approved decisions
 
-- Primary language: Python 3.12
+- Primary language: Python 3.12/3.14
 - Embedded database: SQLite
 - Product form: desktop application with a PySide6 graphical interface
 - Architecture direction: modular
 - Communication direction: event-oriented where appropriate
 - Configuration: performed through the application UI
 - Data organization: independent profile per character
+- Character profile storage model: SQLite database using relational tables (`profiles`, `profile_rules`, `profile_stats` with cascading deletes)
 - Documentation: built into the product and treated as a maintained deliverable
 - Project memory: stored permanently in this repository
 - Dependency workflow: uv, with pip as a fallback
@@ -52,7 +53,6 @@ does not authorize or implement runtime logic.
 - Domain module boundaries beyond the current application foundation
 - Event communication mechanism and its delivery semantics
 - SQLite schema migration strategy beyond the initial settings table
-- Character profile storage model
 - Method for delivering built-in documentation in the application
 - Runtime lifecycle and process model
 - Release process, initial release date, and tagging procedure

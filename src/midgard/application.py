@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QApplication
 
 from midgard import __version__
 from midgard.logging_setup import configure_logging, get_logger
+from midgard.profile import ProfileStore
 from midgard.settings import SettingsStore
 from midgard.ui.main_window import MainWindow
 from midgard.ui.theme import THEME_SETTING_KEY, Theme, stylesheet
@@ -39,7 +40,9 @@ def create_application(
     local_data = data_directory or application_data_directory()
     log_path = configure_logging(local_data / "logs")
     logger = get_logger("application")
-    settings = SettingsStore(local_data / "midgard-studio.db")
+    db_path = local_data / "midgard-studio.db"
+    settings = SettingsStore(db_path)
+    profile_store = ProfileStore(db_path)
     initial_theme = Theme.from_value(settings.get(THEME_SETTING_KEY, Theme.DARK.value))
 
     def apply_theme(theme: Theme) -> None:
@@ -53,7 +56,13 @@ def create_application(
         log_path=log_path,
         version=__version__,
     )
-    app.aboutToQuit.connect(settings.close)
+    window.profile_store = profile_store
+
+    def cleanup() -> None:
+        settings.close()
+        profile_store.close()
+
+    app.aboutToQuit.connect(cleanup)
     logger.info("Midgard Studio %s initialized", __version__)
     logger.info("Application data directory: %s", local_data)
     return app, window, settings

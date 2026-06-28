@@ -30,6 +30,7 @@ def test_application_exposes_all_required_pages(tmp_path) -> None:
     assert window.current_page_name == "About"
     assert any(f"Version {__version__}" in label.text() for label in window.findChildren(QLabel))
     window.close()
+    window.profile_store.close()
     settings.close()
 
 
@@ -43,6 +44,7 @@ def test_theme_selection_is_applied_and_persisted(tmp_path) -> None:
     assert settings.get(THEME_SETTING_KEY) == Theme.LIGHT.value
     assert "#f3f6f9" in app.styleSheet()
     window.close()
+    window.profile_store.close()
     settings.close()
 
 
@@ -56,6 +58,7 @@ def test_saved_theme_is_loaded_on_next_start(tmp_path) -> None:
 
     assert "#f3f6f9" in app.styleSheet()
     window.close()
+    window.profile_store.close()
     settings.close()
 
 
@@ -67,4 +70,5 @@ def test_application_initialization_writes_a_log_file(tmp_path) -> None:
     assert log_path.is_file()
     assert "Midgard Studio" in log_path.read_text(encoding="utf-8")
     window.close()
+    window.profile_store.close()
     settings.close()
