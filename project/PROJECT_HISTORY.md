@@ -173,6 +173,14 @@ not available at the time.
 - Created `tests/test_ocr_parser.py` validating OCR parser, crop parameters, and evaluate status checking.
 - Succeeded verification checks with all 62 tests passing cleanly and clean Ruff formatting.
 
+## 2026-06-28 — TASK-022 Visual Crop Verification Helper
+
+- Created a `Verify Crop` modal helper inside `ProfilesPage` (`src/midgard/ui/pages.py`) that captures a game frame, extracts HP/SP crop areas, and runs them through the `DigitRecognizer` OCR parser.
+- Displayed scaled cropped image blocks (x3) and calculated numerical values side-by-side inside the modal.
+- Fixed an attribute lookup error inside `RuntimeEngine` (`src/midgard/runtime/engine.py`) where legacy color check properties were evaluated on the updated `HealModule` object.
+- Updated mock test cases verifying the new verification dialog workflows inside `tests/test_gui_picker.py`.
+- Verified all 62 test suites passing cleanly.
+
 
 
 

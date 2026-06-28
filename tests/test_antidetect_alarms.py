@@ -90,12 +90,15 @@ def test_engine_sends_death_alarm_when_hp_is_zero() -> None:
     mock_heal.enabled = True
     mock_heal.hp_x = 0
     mock_heal.hp_y = 0
-    mock_heal.expected_hp_r = 0
-    mock_heal.expected_hp_g = 255
-    mock_heal.expected_hp_b = 0
-    mock_heal.color_tolerance = 30
+    mock_heal.hp_w = 10
+    mock_heal.hp_h = 10
     mock_heal.hp_threshold = 70.0
     mock_heal.evaluate.return_value = None
+    
+    # Mock DigitRecognizer to return 0 HP (death status)
+    mock_rec = MagicMock()
+    mock_rec.extract_percentage_or_values.return_value = (0, 100)
+    mock_heal.recognizer = mock_rec
     engine.heal_module = mock_heal
 
     # Mock capture service returning a black image (HP bar depleted = death)
@@ -111,9 +114,11 @@ def test_engine_sends_death_alarm_when_hp_is_zero() -> None:
     def capture_send(sock, msg):
         sent_messages.append(msg)
 
+    # Mock engine _tick death check (which evaluates if hp_pct == 0)
     with patch("midgard.runtime.engine.send_message", side_effect=capture_send):
         engine._tick()
 
+    # The engine generates death alarms when hp_pct <= 0
     alarm_events = [m for m in sent_messages if m.get("type") == "alarm"]
     assert any(e["alarm_type"] == "death" for e in alarm_events), (
         f"Expected death alarm in {alarm_events}"

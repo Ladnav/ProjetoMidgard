@@ -227,23 +227,20 @@ class RuntimeEngine:
                 # 1. Calculate dynamic HP status percentage first so evasion has real data
                 if self.heal_module and self.heal_module.enabled:
                     try:
-                        pixel = image.getpixel((self.heal_module.hp_x, self.heal_module.hp_y))
-                        r, g, b = pixel[0], pixel[1], pixel[2]
-                        # HP bar is dark/black suggesting character death
-                        if r < 20 and g < 20 and b < 20:
-                            hp_pct = 0
+                        width, height = image.size
+                        hx, hy = self.heal_module.hp_x, self.heal_module.hp_y
+                        hw, hh = self.heal_module.hp_w, self.heal_module.hp_h
+                        hx2 = min(hx + hw, width)
+                        hy2 = min(hy + hh, height)
+                        hp_crop = image.crop((hx, hy, hx2, hy2))
+                        
+                        hp_cur, hp_max = self.heal_module.recognizer.extract_percentage_or_values(hp_crop)
+                        if hp_max > 0:
+                            hp_pct = int(hp_cur / hp_max * 100.0)
                         else:
-                            distance = (
-                                (r - self.heal_module.expected_hp_r) ** 2
-                                + (g - self.heal_module.expected_hp_g) ** 2
-                                + (b - self.heal_module.expected_hp_b) ** 2
-                            ) ** 0.5
-                            if distance > self.heal_module.color_tolerance:
-                                hp_pct = int(self.heal_module.hp_threshold - 10)
-                            else:
-                                hp_pct = 92
-                    except IndexError:
-                        pass
+                            hp_pct = 92
+                    except Exception:
+                        hp_pct = 92
 
                 # Check for configured visual search templates
                 # Format: detector.template_path = "/path/to/template.png"

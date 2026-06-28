@@ -1,6 +1,7 @@
 from pathlib import Path
+from PIL import Image
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -808,6 +809,11 @@ class ProfilesPage(Page):
         cd_layout.addWidget(self.heal_max_cooldown)
         layout.addRow("Action Delay Cooldowns", cd_layout)
 
+        # Add visual verification crop button
+        self.heal_verify_btn = QPushButton("📷 Verify Crop (Test OCR)")
+        self.heal_verify_btn.clicked.connect(self._verify_healing_crops)
+        layout.addRow("Calibration Helper", self.heal_verify_btn)
+
         self.tab_widget.addTab(tab, "Healing")
 
     def _init_consumables_tab(self) -> None:
@@ -1160,6 +1166,93 @@ class ProfilesPage(Page):
             if dialog.selected_x is not None:
                 self.heal_sp_x.setValue(dialog.selected_x)
                 self.heal_sp_y.setValue(dialog.selected_y)
+
+    def _verify_healing_crops(self) -> None:
+        """Capture the current frame, crop HP/SP bounding boxes, parse them with OCR, and show visual dialog."""
+        pixmap = self._capture_game_window()
+        if pixmap is None:
+            return
+
+        # Convert QPixmap to PIL image
+        qimg = pixmap.toImage()
+        qimg = qimg.convertToFormat(QImage.Format.Format_RGBA8888)
+        img_w, img_h = qimg.width(), qimg.height()
+        
+        # Read raw image pointer bytes using PySide memory buffer parsing
+        ptr = qimg.constBits()
+        img_bytes = ptr.tobytes()
+        pil_img = Image.frombytes("RGBA", (img_w, img_h), img_bytes)
+
+        # 1. HP Crop Processing
+        hp_x, hp_y = self.heal_hp_x.value(), self.heal_hp_y.value()
+        hp_w, hp_h = self.heal_hp_w.value(), self.heal_hp_h.value()
+        hp_x2 = min(hp_x + hp_w, img_w)
+        hp_y2 = min(hp_y + hp_h, img_h)
+        hp_crop = pil_img.crop((hp_x, hp_y, hp_x2, hp_y2))
+
+        # 2. SP Crop Processing
+        sp_x, sp_y = self.heal_sp_x.value(), self.heal_sp_y.value()
+        sp_w, sp_h = self.heal_sp_w.value(), self.heal_sp_h.value()
+        sp_x2 = min(sp_x + sp_w, img_w)
+        sp_y2 = min(sp_y + sp_h, img_h)
+        sp_crop = pil_img.crop((sp_x, sp_y, sp_x2, sp_y2))
+
+        # Parse through DigitRecognizer
+        from midgard.vision.ocr import DigitRecognizer
+        recognizer = DigitRecognizer()
+        
+        hp_text = recognizer.parse_image(hp_crop)
+        hp_cur, hp_max = recognizer.extract_percentage_or_values(hp_crop)
+        hp_pct = (hp_cur / hp_max * 100.0) if hp_max > 0 else 0.0
+
+        sp_text = recognizer.parse_image(sp_crop)
+        sp_cur, sp_max = recognizer.extract_percentage_or_values(sp_crop)
+        sp_pct = (sp_cur / sp_max * 100.0) if sp_max > 0 else 0.0
+
+        # Construct visual modal dialog to display result
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Verify Crop & OCR Output")
+        dialog.setMinimumWidth(320)
+        diag_layout = QVBoxLayout(dialog)
+
+        # Helper method to convert PIL to QPixmap
+        def pil_to_pixmap(pil_c):
+            c_img = pil_c.convert("RGBA")
+            c_data = c_img.tobytes("raw", "RGBA")
+            pc_w, pc_h = pil_c.size
+            q_char = QImage(c_data, pc_w, pc_h, QImage.Format.Format_RGBA8888)
+            # Scale up for easy user inspection
+            scaled = QPixmap.fromImage(q_char).scaled(
+                pc_w * 3, pc_h * 3, Qt.AspectRatioMode.KeepAspectRatio
+            )
+            return scaled
+
+        # HP visual block
+        hp_label = QLabel("<b>HP Crop Crop Area (Scaled x3):</b>")
+        hp_img_lbl = QLabel()
+        hp_img_lbl.setPixmap(pil_to_pixmap(hp_crop))
+        hp_res_lbl = QLabel(f"OCR String: <b>'{hp_text}'</b> &rarr; Calculated: <b>{hp_cur}/{hp_max} ({hp_pct:.1f}%)</b>")
+        
+        diag_layout.addWidget(hp_label)
+        diag_layout.addWidget(hp_img_lbl)
+        diag_layout.addWidget(hp_res_lbl)
+
+        # SP visual block
+        sp_label = QLabel("<br><b>SP Crop Crop Area (Scaled x3):</b>")
+        sp_img_lbl = QLabel()
+        sp_img_lbl.setPixmap(pil_to_pixmap(sp_crop))
+        sp_res_lbl = QLabel(f"OCR String: <b>'{sp_text}'</b> &rarr; Calculated: <b>{sp_cur}/{sp_max} ({sp_pct:.1f}%)</b>")
+
+        diag_layout.addWidget(sp_label)
+        diag_layout.addWidget(sp_img_lbl)
+        diag_layout.addWidget(sp_res_lbl)
+
+        from PySide6.QtWidgets import QDialogButtonBox
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        buttons.accepted.connect(dialog.accept)
+        diag_layout.addWidget(buttons)
+
+        dialog.exec()
 
     def _pick_combat_color(self) -> None:
         """Show color picker to capture combat target color."""
