@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-016 — Studio Dashboard Metrics & Searchable Logs.
+TASK-017 — Standalone Executable Packaging.
 
 ## Present
 
@@ -30,6 +30,7 @@ TASK-016 — Studio Dashboard Metrics & Searchable Logs.
 - Interactive `RuntimePage` allowing profile selection, start/pause/stop runtime triggers, background event collection via a non-blocking `RuntimeWorker` thread, live terminal logging, and operational statistics metrics (HP, XP, Loot)
 - Searchable and clearable `LogsPage` visual terminal with real-time file reading, filtering by text patterns, and severity level selections (INFO, WARNING, ERROR)
 - Active `StatisticsPage` displaying profile operational metrics (XP accumulated, loot collected, deaths, session times) directly queried from SQLite storage
+- Single, standalone executable build compiled using PyInstaller (`dist/MidgardStudio.exe`) for portable Windows distribution
 - Visual `PickDialog` coordinate and color picker overlay displaying target window GDI captures with hover tooltips and automatic coordinate/RGB population
 - Antidetection input protections: Bezier curve smooth mouse trajectories, randomized key/click hold durations mimicking human behavior
 - Alarm notification system: engine emits IPC TCP `alarm` events for character death (HP=0%) and game client disconnection; Studio plays audio beep and flashes red UI alerts
@@ -41,7 +42,7 @@ TASK-016 — Studio Dashboard Metrics & Searchable Logs.
 - Application version 0.2.0 displayed on the About page
 - uv dependency declaration and lock-file workflow
 - Ruff formatter and linter configuration
-- pytest coverage for package metadata, settings, character profiles, runtime/IPC, GDI capture, Win32/Dummy inputs, Heal triggers, Combat scanning, Waypoint navigation, Consumables timers, Profiles rules GUI, Runtime GUI, Pick Dialog overlay, Antidetection/Alarm system, A* Pathfinding route solver, Evasion triggers, OpenCV Template Matching, and Searchable Logs/Statistics GUI layouts
+- pytest coverage for package metadata, settings, character profiles, runtime/IPC, GDI capture, Win32/Dummy inputs, Heal triggers, Combat scanning, Waypoint navigation, Consumables timers, Profiles rules GUI, Runtime GUI, Pick Dialog overlay, Antidetection/Alarm system, A* Pathfinding route solver, Evasion triggers, OpenCV Template Matching, Searchable Logs/Statistics GUI layouts, and PyInstaller builder script configurations
 - GitHub Actions quality workflow for Ubuntu Latest (selectively skipping Windows GDI capture and Win32 input/mouse tests)
 - Bootstrap, contributor, licensing, changelog, and project-memory documentation
 
@@ -51,7 +52,7 @@ TASK-016 — Studio Dashboard Metrics & Searchable Logs.
 - Computer vision or OCR (YOLO object detection)
 - Plugin system
 - AI features
-- Distribution or release artifacts
+- Distribution or release artifacts [Standalone .exe generated at dist/MidgardStudio.exe]
 
 ## Validation target
 
@@ -84,9 +85,10 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 - A* path routing solvers (basic path, obstacle detours, blocked targets) and Evasion panic health hotkey actions tested and passed
 - OpenCV image Template Matching searches and threshold matching logic tested and passed
 - Searchable diagnostics logs, text query matching, level filters, and active profile statistics page updates tested and passed
+- Executable compiler builder script (`build_executable.py`) successfully generated standalone executable binary `MidgardStudio.exe` at project root `dist/` directory
 - Native Windows launch and dark/light theme screenshots were visually inspected
 - The uv lock resolves the full PySide6 dependency for CI installation
 
 ## Delivery state
 
-TASK-016 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-017 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

@@ -150,4 +150,12 @@ not available at the time.
 - Created `tests/test_visual_detector.py` validating matching coords accuracy, threshold scaling, and fail conditions.
 - Verified all 55 tests passing under Python 3.14.5 and Ruff check formatting validation.
 
+## 2026-06-28 — TASK-017 Standalone Executable Packaging
+
+- Added `pyinstaller` dependency to development groups inside `pyproject.toml`.
+- Created build compiler script `build_executable.py` configuring PyInstaller bundle mappings (bundling PySide6, OpenCV, Pillow, SQLite schemas).
+- Triggered automated build task successfully compiling portable standalone binary `dist/MidgardStudio.exe`.
+- Succeeded packaging verification with clean Ruff checks.
+
+
 
