@@ -114,3 +114,12 @@ not available at the time.
 - Wired graceful termination lifecycle hooks inside MainWindow closeEvent to prevent lingering launcher or engine processes.
 - Added comprehensive unit and UI integration tests in `tests/test_gui_runtime.py`.
 - Verified all 39 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+## 2026-06-28 — TASK-012 Midgard Studio GUI Color & Position Picker
+
+- Implemented `PickDialog` and `PickerLabel` custom widget in `src/midgard/ui/picker.py` to enable pixel position and color selections.
+- Added mouse hover tracking to display live coordinate `(x, y)` and RGB color values in tooltip overlays.
+- Integrated "Pick" buttons in healing coordinate and combat target color fields of the ProfilesPage settings view.
+- Handled game client window captures using GDI fallback to full screen monitor snapshot if the window discovery fails.
+- Added comprehensive unit and integration tests in `tests/test_gui_picker.py` asserting dialog clicks and form updates.
+- Verified all 41 tests passing under Python 3.14.5 and Ruff check formatting validation.

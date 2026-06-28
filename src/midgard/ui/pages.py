@@ -1,9 +1,11 @@
 from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
+from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
     QDoubleSpinBox,
     QFormLayout,
     QFrame,
@@ -22,7 +24,9 @@ from PySide6.QtWidgets import (
 
 from midgard.profile import ProfileStore
 from midgard.runtime.launcher import RuntimeLauncher
+from midgard.ui.picker import PickDialog
 from midgard.ui.theme import Theme
+from midgard.vision.capture import WindowCaptureService
 
 
 class Page(QWidget):
@@ -487,6 +491,9 @@ class ProfilesPage(Page):
         coord_layout.addWidget(self.heal_hp_x)
         coord_layout.addWidget(QLabel("Y:"))
         coord_layout.addWidget(self.heal_hp_y)
+        self.heal_pick_btn = QPushButton("Pick Coords & Color")
+        self.heal_pick_btn.clicked.connect(self._pick_healing_pixel)
+        coord_layout.addWidget(self.heal_pick_btn)
         layout.addRow("HP Bar Coordinates", coord_layout)
 
         color_layout = QHBoxLayout()
@@ -562,6 +569,9 @@ class ProfilesPage(Page):
         color_layout.addWidget(self.combat_target_g)
         color_layout.addWidget(QLabel("B:"))
         color_layout.addWidget(self.combat_target_b)
+        self.combat_pick_btn = QPushButton("Pick Color")
+        self.combat_pick_btn.clicked.connect(self._pick_combat_color)
+        color_layout.addWidget(self.combat_pick_btn)
         layout.addRow("Target RGB Color", color_layout)
 
         layout.addRow("Color Match Tolerance", self.combat_color_tolerance)
@@ -766,3 +776,63 @@ class ProfilesPage(Page):
             QMessageBox.information(self, "Success", "Profile automation rules saved successfully.")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save rules: {e}")
+
+    def _capture_game_window(self) -> QPixmap | None:
+        """Capture the profile's target game window or fallbacks to primary screen."""
+        profile_id = self.profile_combo.currentData()
+        if profile_id is None:
+            QMessageBox.warning(self, "No Profile", "Select a profile first.")
+            return None
+
+        profile = self.profile_store.get_profile(profile_id)
+        if not profile or not profile.window_title:
+            QMessageBox.warning(self, "No Title", "Configure a game window title first.")
+            return None
+
+        try:
+            capture_service = WindowCaptureService.from_title(profile.window_title)
+            pil_img = capture_service.capture()
+            # Convert PIL Image to QPixmap
+            pil_img = pil_img.convert("RGBA")
+            data = bytes(pil_img.tobytes("raw", "RGBA"))
+            qimg = QImage(data, pil_img.width(), pil_img.height(), QImage.Format.Format_RGBA8888)
+            return QPixmap.fromImage(qimg)
+        except Exception as e:
+            QMessageBox.warning(
+                self,
+                "Capture Fallback",
+                f"Could not connect to window '{profile.window_title}' ({e}).\n"
+                "Falling back to capturing the primary screen monitor.",
+            )
+            from PySide6.QtGui import QGuiApplication
+
+            screen = QGuiApplication.primaryScreen()
+            if screen:
+                return screen.grabWindow(0)
+            return None
+
+    def _pick_healing_pixel(self) -> None:
+        """Show color picker to capture HP coordinates and expected color."""
+        pixmap = self._capture_game_window()
+        if pixmap is None:
+            return
+        dialog = PickDialog(pixmap, self)
+        if dialog.exec() == QDialog.Accepted:
+            if dialog.selected_x is not None:
+                self.heal_hp_x.setValue(dialog.selected_x)
+                self.heal_hp_y.setValue(dialog.selected_y)
+                self.heal_expected_r.setValue(dialog.selected_r)
+                self.heal_expected_g.setValue(dialog.selected_g)
+                self.heal_expected_b.setValue(dialog.selected_b)
+
+    def _pick_combat_color(self) -> None:
+        """Show color picker to capture combat target color."""
+        pixmap = self._capture_game_window()
+        if pixmap is None:
+            return
+        dialog = PickDialog(pixmap, self)
+        if dialog.exec() == QDialog.Accepted:
+            if dialog.selected_r is not None:
+                self.combat_target_r.setValue(dialog.selected_r)
+                self.combat_target_g.setValue(dialog.selected_g)
+                self.combat_target_b.setValue(dialog.selected_b)
