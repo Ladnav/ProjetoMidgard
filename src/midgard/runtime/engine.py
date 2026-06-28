@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from midgard.profile import ProfileStore
+from midgard.runtime.combat import CombatModule
 from midgard.runtime.heal import HealModule
 from midgard.runtime.input import DummyInputAdapter, Win32InputAdapter
 from midgard.runtime.protocol import recv_message, send_message
@@ -36,6 +37,7 @@ class RuntimeEngine:
         self.input_adapter = DummyInputAdapter() if use_dummy_input else Win32InputAdapter()
         self.capture_service: WindowCaptureService | None = None
         self.heal_module: HealModule | None = None
+        self.combat_module: CombatModule | None = None
 
         # Stats
         self.xp_gained = 0
@@ -64,9 +66,15 @@ class RuntimeEngine:
                 heal_rules = profile.rules.get("healing", {})
                 self.heal_module = HealModule(heal_rules, self.input_adapter)
 
+                # Initialize combat rules dict
+                combat_rules = profile.rules.get("combat", {})
+
                 # Find and initialize WindowCaptureService if window_title is set
                 try:
                     self.capture_service = WindowCaptureService.from_title(profile.window_title)
+                    self.combat_module = CombatModule(
+                        combat_rules, self.input_adapter, self.capture_service.hwnd
+                    )
                     window_log = (
                         f"Connected to game window '{profile.window_title}' "
                         f"(HWND: {self.capture_service.hwnd})"
@@ -182,20 +190,36 @@ class RuntimeEngine:
         self.xp_gained += 15
         self.loot_collected += 1
 
-        # Run GDI Screen Capture and Heal Module
-        if self.capture_service and self.heal_module:
+        # Run GDI Screen Capture and Modules
+        if self.capture_service:
             try:
                 image = self.capture_service.capture()
-                log_msg = self.heal_module.evaluate(image)
-                if log_msg:
-                    send_message(
-                        self._sock,
-                        {
-                            "type": "log",
-                            "message": log_msg,
-                            "level": "INFO",
-                        },
-                    )
+
+                # Evaluate Heal Module
+                if self.heal_module:
+                    heal_log = self.heal_module.evaluate(image)
+                    if heal_log:
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "log",
+                                "message": heal_log,
+                                "level": "INFO",
+                            },
+                        )
+
+                # Evaluate Combat Module
+                if self.combat_module:
+                    combat_log = self.combat_module.evaluate(image)
+                    if combat_log:
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "log",
+                                "message": combat_log,
+                                "level": "INFO",
+                            },
+                        )
             except Exception as e:
                 # Log any runtime capture / evaluation warnings
                 try:
@@ -203,7 +227,7 @@ class RuntimeEngine:
                         self._sock,
                         {
                             "type": "log",
-                            "message": f"Heal evaluation error: {e}",
+                            "message": f"Automation evaluation error: {e}",
                             "level": "WARNING",
                         },
                     )

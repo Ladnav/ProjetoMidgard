@@ -74,3 +74,12 @@ not available at the time.
 - Added comprehensive unit tests in `tests/test_automation.py` covering key event histories, disabled states, color distance calculation triggers, and cooldown windows.
 - Updated `tests/test_runtime.py` to launch subprocesses with `--dummy-input` to bypass GDI/Win32 hooks warnings on headless CI test environments.
 - Verified all 26 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+## 2026-06-28 — TASK-007 Midgard Advanced Automation Foundation (Mouse & Target Selection)
+
+- Extended `src/midgard/runtime/input.py` to support absolute mouse movements (`move_mouse_relative`) and click events (`click_mouse`) using Win32 `MOUSEINPUT` structures inside `SendInput`.
+- Implemented native `ClientToScreen` conversion inside `Win32InputAdapter` to translate window-relative client coordinates into correct screen coordinate space.
+- Created `CombatModule` in `src/midgard/runtime/combat.py` implementing a performance-optimized color grid scanner to locate targets (monsters/nameplates) and compute their centroid coordinates for attack clicks.
+- Integrated the `CombatModule` into the `RuntimeEngine` tick loop alongside `HealModule`, sharing the same screen capture image to conserve system resources.
+- Added comprehensive unit tests in `tests/test_combat.py` verifying Dummy adapter mouse event recording, grid target finding, centroid math accuracy, and combat action cooldown windows.
+- Verified all 30 tests passing under Python 3.14.5 and Ruff check formatting validation.
