@@ -18,7 +18,15 @@ from PySide6.QtWidgets import (
 from midgard.logging_setup import get_logger
 from midgard.profile import ProfileStore
 from midgard.settings import SettingsStore
-from midgard.ui.pages import AboutPage, LogsPage, Page, ProfilesPage, RuntimePage, SettingsPage
+from midgard.ui.pages import (
+    AboutPage,
+    LogsPage,
+    Page,
+    ProfilesPage,
+    RuntimePage,
+    SettingsPage,
+    StatisticsPage,
+)
 from midgard.ui.theme import THEME_SETTING_KEY, Theme
 
 PAGE_NAMES = (
@@ -94,12 +102,7 @@ class MainWindow(QMainWindow):
             ),
             "Profiles": ProfilesPage(self.profile_store),
             "Runtime": RuntimePage(self.profile_store),
-            "Statistics": Page(
-                "Statistics",
-                "Future operational metrics will be presented here.",
-                "No statistics available",
-                "Data collection and reporting have not been designed or implemented.",
-            ),
+            "Statistics": StatisticsPage(self.profile_store),
             "Settings": SettingsPage(initial_theme),
             "Logs": LogsPage(log_path),
             "About": AboutPage(version),

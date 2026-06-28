@@ -322,6 +322,26 @@ class RuntimePage(Page):
         self.xp_lbl.setText(f"XP Gained: {xp}")
         self.loot_lbl.setText(f"Loot: {loot}")
 
+        # Persist dynamic stats incrementally inside SQLite
+        profile_id = self.profile_combo.currentData()
+        if profile_id is not None:
+            try:
+                # Assume 1 second elapsed per telemetry update tick
+                profile = self.profile_store.get_profile(profile_id)
+                deaths = profile.stats.deaths if (profile and profile.stats) else 0
+                r_sec = (
+                    (profile.stats.runtime_seconds + 1.0) if (profile and profile.stats) else 1.0
+                )
+                self.profile_store.update_stats(
+                    profile_id=profile_id,
+                    experience_gained=xp,
+                    deaths=deaths,
+                    loot_count=loot,
+                    runtime_seconds=r_sec,
+                )
+            except Exception:
+                pass
+
         if hp < 30:
             self.hp_lbl.setStyleSheet("color: #ef4444; font-weight: bold;")
         else:
@@ -354,6 +374,21 @@ class RuntimePage(Page):
         self.status_lbl.setStyleSheet("color: #ef4444; font-weight: bold;")
         if alarm_type == "death":
             self.status_lbl.setText("Status: 💀 CHARACTER DEATH DETECTED")
+            # Update death count in SQLite
+            profile_id = self.profile_combo.currentData()
+            if profile_id is not None:
+                try:
+                    profile = self.profile_store.get_profile(profile_id)
+                    if profile and profile.stats:
+                        self.profile_store.update_stats(
+                            profile_id=profile_id,
+                            experience_gained=profile.stats.experience_gained,
+                            deaths=profile.stats.deaths + 1,
+                            loot_count=profile.stats.loot_count,
+                            runtime_seconds=profile.stats.runtime_seconds,
+                        )
+                except Exception:
+                    pass
         elif alarm_type == "disconnect":
             self.status_lbl.setText("Status: ⚡ CLIENT DISCONNECTED")
         elif alarm_type == "template_match":
@@ -376,16 +411,197 @@ class RuntimePage(Page):
 
 
 class LogsPage(Page):
-    """Placeholder page that identifies the active application log file."""
+    """Page for viewing and searching application diagnostics log files."""
 
     def __init__(self, log_path: Path) -> None:
         super().__init__(
             "Logs",
             "Application diagnostics are recorded locally.",
-            "Logger ready",
-            f"Current log file: {log_path}",
+            "Diagnostics Viewer",
+            f"Active log file: {log_path}",
             card_eyebrow="DIAGNOSTICS",
         )
+        self.log_path = log_path
+
+        # Create control bar layout
+        control_layout = QHBoxLayout()
+        control_layout.setContentsMargins(0, 10, 0, 10)
+
+        # 1. Search filter input
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Filter logs by text...")
+        self.search_input.textChanged.connect(self._load_and_filter_logs)
+        control_layout.addWidget(self.search_input, 1)
+
+        # 2. Level filter dropdown
+        self.level_combo = QComboBox()
+        self.level_combo.addItem("All Levels", "ALL")
+        self.level_combo.addItem("Info", "INFO")
+        self.level_combo.addItem("Warning", "WARNING")
+        self.level_combo.addItem("Error", "ERROR")
+        self.level_combo.currentIndexChanged.connect(self._load_and_filter_logs)
+        control_layout.addWidget(self.level_combo)
+
+        # 3. Reload button
+        reload_btn = QPushButton("Reload")
+        reload_btn.clicked.connect(self._load_and_filter_logs)
+        control_layout.addWidget(reload_btn)
+
+        # 4. Clear button
+        clear_btn = QPushButton("Clear File")
+        clear_btn.clicked.connect(self._clear_log_file)
+        control_layout.addWidget(clear_btn)
+
+        self.card_layout.addLayout(control_layout)
+
+        # 5. Log text browser
+        self.log_viewer = QTextEdit()
+        self.log_viewer.setReadOnly(True)
+        self.log_viewer.setStyleSheet(
+            "background-color: #0b0f19;"
+            "color: #cbd5e1;"
+            "font-family: 'Consolas', 'Courier New', monospace;"
+            "font-size: 10pt;"
+            "border: 1px solid #1e293b;"
+            "border-radius: 4px;"
+            "padding: 8px;"
+        )
+        self.log_viewer.setMinimumHeight(350)
+        self.card_layout.addWidget(self.log_viewer)
+
+        # Load initial logs
+        self._load_and_filter_logs()
+
+    def showEvent(self, event) -> None:
+        """Reload logs whenever page is loaded/navigated."""
+        super().showEvent(event)
+        self._load_and_filter_logs()
+
+    def _load_and_filter_logs(self) -> None:
+        """Read logs file, filter by search text and severity level, and display."""
+        if not self.log_path.exists():
+            self.log_viewer.setPlainText("Log file does not exist yet.")
+            return
+
+        search_query = self.search_input.text().lower()
+        level_filter = self.level_combo.currentData()
+
+        filtered_lines = []
+        try:
+            with open(self.log_path, encoding="utf-8") as f:
+                # Read last 500 lines to avoid UI hanging
+                lines = f.readlines()[-500:]
+                for line in lines:
+                    line_lower = line.lower()
+                    if search_query and search_query not in line_lower:
+                        continue
+                    if level_filter != "ALL":
+                        if f"[{level_filter}]" not in line and f" - {level_filter} - " not in line:
+                            # Also check lowercase representation
+                            if f" {level_filter.lower()} " not in line_lower:
+                                continue
+                    filtered_lines.append(line.strip())
+        except OSError as e:
+            self.log_viewer.setPlainText(f"Failed to read log file: {e}")
+            return
+
+        if filtered_lines:
+            self.log_viewer.setPlainText("\n".join(filtered_lines))
+        else:
+            self.log_viewer.setPlainText("No logs matched the selected filters.")
+
+        # Auto scroll to bottom
+        scrollbar = self.log_viewer.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+
+    def _clear_log_file(self) -> None:
+        """Truncate the log file to clean up space."""
+        if self.log_path.exists():
+            try:
+                with open(self.log_path, "w", encoding="utf-8") as f:
+                    f.truncate(0)
+                self._load_and_filter_logs()
+            except OSError as e:
+                QMessageBox.critical(self, "Error", f"Failed to clear log file: {e}")
+
+
+class StatisticsPage(Page):
+    """Presents operational performance summaries and metrics from SQLite."""
+
+    def __init__(self, profile_store: ProfileStore) -> None:
+        super().__init__(
+            "Statistics",
+            "Performance metrics and operational history.",
+            "Character Statistics Summary",
+            "Select a profile below to load aggregated runtime stats from database storage.",
+            card_eyebrow="METRICS",
+        )
+        self.profile_store = profile_store
+
+        # 1. Profile selector row
+        selector_layout = QHBoxLayout()
+        selector_layout.setContentsMargins(0, 10, 0, 10)
+        selector_label = QLabel("Select Profile:")
+        self.profile_combo = QComboBox()
+        self.profile_combo.currentIndexChanged.connect(self._load_statistics)
+        selector_layout.addWidget(selector_label)
+        selector_layout.addWidget(self.profile_combo, 1)
+        self.card_layout.addLayout(selector_layout)
+
+        # 2. Stats summary cards layout
+        self.stats_layout = QVBoxLayout()
+        self.stats_layout.setSpacing(12)
+
+        self.xp_card = QLabel("XP Accumulated: --")
+        self.xp_card.setStyleSheet("font-size: 11pt; padding: 4px;")
+        self.loot_card = QLabel("Total Loot Collected: --")
+        self.loot_card.setStyleSheet("font-size: 11pt; padding: 4px;")
+        self.deaths_card = QLabel("Character Deaths: --")
+        self.deaths_card.setStyleSheet("font-size: 11pt; padding: 4px;")
+        self.time_card = QLabel("Runtime: -- minutes")
+        self.time_card.setStyleSheet("font-size: 11pt; padding: 4px;")
+
+        self.stats_layout.addWidget(self.xp_card)
+        self.stats_layout.addWidget(self.loot_card)
+        self.stats_layout.addWidget(self.deaths_card)
+        self.stats_layout.addWidget(self.time_card)
+
+        self.card_layout.addLayout(self.stats_layout)
+
+        # Load list
+        self._refresh_profiles()
+
+    def _refresh_profiles(self) -> None:
+        """Populate profile combobox options."""
+        self.profile_combo.clear()
+        profiles = self.profile_store.list_profiles()
+        for p in profiles:
+            self.profile_combo.addItem(p.name, p.id)
+
+    def showEvent(self, event) -> None:
+        """Refresh selection on navigation tab load."""
+        super().showEvent(event)
+        self._refresh_profiles()
+        self._load_statistics()
+
+    def _load_statistics(self) -> None:
+        """Fetch stats for selected profile and update UI labels."""
+        profile_id = self.profile_combo.currentData()
+        if profile_id is None:
+            self.xp_card.setText("XP Accumulated: --")
+            self.loot_card.setText("Total Loot Collected: --")
+            self.deaths_card.setText("Character Deaths: --")
+            self.time_card.setText("Runtime: -- minutes")
+            return
+
+        profile = self.profile_store.get_profile(profile_id)
+        if profile and profile.stats:
+            stats = profile.stats
+            runtime_mins = round(stats.runtime_seconds / 60.0, 1)
+            self.xp_card.setText(f"XP Accumulated: {stats.experience_gained} XP")
+            self.loot_card.setText(f"Total Loot Collected: {stats.loot_count} items")
+            self.deaths_card.setText(f"Character Deaths: {stats.deaths} deaths")
+            self.time_card.setText(f"Runtime: {runtime_mins} minutes")
 
 
 class AboutPage(Page):
