@@ -84,6 +84,11 @@ class RuntimeEngine:
                 evasion_rules = profile.rules.get("evasion", {})
                 self.evasion_module = EvasionModule(evasion_rules, self.input_adapter)
 
+                # Initialize looting rules dict
+                looting_rules = profile.rules.get("looting", {})
+                from midgard.runtime.loot import LootModule
+                self.loot_module = LootModule(looting_rules, self.input_adapter)
+
                 # Initialize combat rules dict
                 combat_rules = profile.rules.get("combat", {})
 
@@ -317,6 +322,21 @@ class RuntimeEngine:
                                 "type": "log",
                                 "message": evasion_log,
                                 "level": "WARNING",
+                            },
+                        )
+
+                # 3. Auto-Loot check
+                if not triggered_action and hasattr(self, "loot_module") and self.loot_module:
+                    loot_log = self.loot_module.evaluate(image)
+                    if loot_log:
+                        triggered_action = True
+                        self.loot_collected += 1
+                        send_message(
+                            self._sock,
+                            {
+                                "type": "log",
+                                "message": loot_log,
+                                "level": "INFO",
                             },
                         )
 

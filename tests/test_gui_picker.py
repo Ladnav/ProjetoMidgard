@@ -77,6 +77,14 @@ def test_profiles_page_picker_integration(tmp_path) -> None:
         assert profiles_page.combat_target_g.value() == 128
         assert profiles_page.combat_target_b.value() == 64
 
+        # 2.5 Trigger Loot Picker
+        profiles_page._pick_loot_color()
+        app.processEvents()
+
+        assert profiles_page.loot_color_r.value() == 255
+        assert profiles_page.loot_color_g.value() == 128
+        assert profiles_page.loot_color_b.value() == 64
+
         # 3. Trigger Verify Crops modal check
         with patch("PySide6.QtWidgets.QDialog.exec", return_value=QDialog.Accepted):
             profiles_page._verify_healing_crops()

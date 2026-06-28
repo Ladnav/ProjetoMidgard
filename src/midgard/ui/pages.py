@@ -674,6 +674,7 @@ class ProfilesPage(Page):
         # Initialize Forms for tabs
         self._init_healing_tab()
         self._init_consumables_tab()
+        self._init_looting_tab()
         self._init_combat_tab()
         self._init_navigation_tab()
 
@@ -832,6 +833,51 @@ class ProfilesPage(Page):
 
         self.tab_widget.addTab(tab, "Consumables")
 
+    def _init_looting_tab(self) -> None:
+        tab = QWidget()
+        layout = QFormLayout(tab)
+
+        self.loot_enabled = QCheckBox("Enable Auto-Looting")
+        self.loot_color_r = QSpinBox()
+        self.loot_color_r.setRange(0, 255)
+        self.loot_color_r.setValue(220)
+        self.loot_color_g = QSpinBox()
+        self.loot_color_g.setRange(0, 255)
+        self.loot_color_g.setValue(220)
+        self.loot_color_b = QSpinBox()
+        self.loot_color_b.setRange(0, 255)
+        self.loot_color_b.setValue(220)
+
+        self.loot_color_tolerance = QSpinBox()
+        self.loot_color_tolerance.setRange(0, 255)
+        self.loot_color_tolerance.setValue(15)
+
+        self.loot_cooldown = QDoubleSpinBox()
+        self.loot_cooldown.setRange(0.0, 10.0)
+        self.loot_cooldown.setValue(1.0)
+        self.loot_cooldown.setSingleStep(0.1)
+
+        layout.addRow(self.loot_enabled)
+
+        color_layout = QHBoxLayout()
+        color_layout.addWidget(QLabel("R:"))
+        color_layout.addWidget(self.loot_color_r)
+        color_layout.addWidget(QLabel("G:"))
+        color_layout.addWidget(self.loot_color_g)
+        color_layout.addWidget(QLabel("B:"))
+        color_layout.addWidget(self.loot_color_b)
+        
+        # Color picker reuse
+        self.loot_pick_btn = QPushButton("Pick Loot Color")
+        self.loot_pick_btn.clicked.connect(self._pick_loot_color)
+        color_layout.addWidget(self.loot_pick_btn)
+        
+        layout.addRow("Loot Name Color (RGB)", color_layout)
+        layout.addRow("Color Match Tolerance", self.loot_color_tolerance)
+        layout.addRow("Looting Cooldown Delay (s)", self.loot_cooldown)
+
+        self.tab_widget.addTab(tab, "Looting")
+
     def _init_combat_tab(self) -> None:
         tab = QWidget()
         layout = QFormLayout(tab)
@@ -955,6 +1001,15 @@ class ProfilesPage(Page):
         )
         self.consumables_text.setPlainText(cons.get("consumables.items", ""))
 
+        # Load Looting rules
+        loot = rules.get("looting", {})
+        self.loot_enabled.setChecked(loot.get("loot.enabled", "false").lower() == "true")
+        self.loot_color_r.setValue(int(loot.get("loot.color.r", "220")))
+        self.loot_color_g.setValue(int(loot.get("loot.color.g", "220")))
+        self.loot_color_b.setValue(int(loot.get("loot.color.b", "220")))
+        self.loot_color_tolerance.setValue(int(loot.get("loot.color.tolerance", "15")))
+        self.loot_cooldown.setValue(float(loot.get("loot.cooldown", "1.0")))
+
         # Load Combat rules
         combat = rules.get("combat", {})
         self.combat_enabled.setChecked(combat.get("combat.enabled", "false").lower() == "true")
@@ -1056,6 +1111,26 @@ class ProfilesPage(Page):
                 "consumables",
                 "consumables.items",
                 self.consumables_text.toPlainText().strip(),
+            )
+
+            # Save Looting rules
+            self.profile_store.set_rule(
+                profile_id, "looting", "loot.enabled", str(self.loot_enabled.isChecked()).lower()
+            )
+            self.profile_store.set_rule(
+                profile_id, "looting", "loot.color.r", str(self.loot_color_r.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "looting", "loot.color.g", str(self.loot_color_g.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "looting", "loot.color.b", str(self.loot_color_b.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "looting", "loot.color.tolerance", str(self.loot_color_tolerance.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "looting", "loot.cooldown", str(self.loot_cooldown.value())
             )
 
             # 3. Save Combat rules
@@ -1253,6 +1328,18 @@ class ProfilesPage(Page):
         diag_layout.addWidget(buttons)
 
         dialog.exec()
+
+    def _pick_loot_color(self) -> None:
+        """Show color picker to capture loot name plate colors."""
+        pixmap = self._capture_game_window()
+        if pixmap is None:
+            return
+        dialog = PickDialog(pixmap, self)
+        if dialog.exec() == QDialog.Accepted:
+            if dialog.selected_r is not None:
+                self.loot_color_r.setValue(dialog.selected_r)
+                self.loot_color_g.setValue(dialog.selected_g)
+                self.loot_color_b.setValue(dialog.selected_b)
 
     def _pick_combat_color(self) -> None:
         """Show color picker to capture combat target color."""

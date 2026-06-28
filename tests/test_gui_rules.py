@@ -65,6 +65,14 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     profiles_page.nav_enabled.setChecked(True)
     profiles_page.nav_waypoints_text.setPlainText("150,150,2.5;300,300,5.0")
 
+    # Edit Looting rules in UI
+    profiles_page.loot_enabled.setChecked(True)
+    profiles_page.loot_color_r.setValue(210)
+    profiles_page.loot_color_g.setValue(215)
+    profiles_page.loot_color_b.setValue(225)
+    profiles_page.loot_color_tolerance.setValue(10)
+    profiles_page.loot_cooldown.setValue(2.5)
+
     # Save via GUI
     profiles_page._save_profile_rules()
     app.processEvents()
@@ -94,6 +102,14 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     consumables_rules = db_profile.rules.get("consumables", {})
     assert consumables_rules.get("consumables.enabled") == "true"
     assert consumables_rules.get("consumables.items") == "berserk_potion,F5,180.0"
+
+    looting_rules = db_profile.rules.get("looting", {})
+    assert looting_rules.get("loot.enabled") == "true"
+    assert looting_rules.get("loot.color.r") == "210"
+    assert looting_rules.get("loot.color.g") == "215"
+    assert looting_rules.get("loot.color.b") == "225"
+    assert looting_rules.get("loot.color.tolerance") == "10"
+    assert looting_rules.get("loot.cooldown") == "2.5"
 
     combat_rules = db_profile.rules.get("combat", {})
     assert combat_rules.get("combat.enabled") == "true"

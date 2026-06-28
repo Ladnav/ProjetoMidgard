@@ -181,6 +181,15 @@ not available at the time.
 - Updated mock test cases verifying the new verification dialog workflows inside `tests/test_gui_picker.py`.
 - Verified all 62 test suites passing cleanly.
 
+## 2026-06-28 — TASK-023 Auto-Looting Module
+
+- Created `LootModule` inside `src/midgard/runtime/loot.py` identifying dropped item nameplate color pixel clusters and clicking centroids.
+- Added a "Looting" rules configuration tab to the `ProfilesPage` editor in `src/midgard/ui/pages.py`, enabling nameplate color selections, tolerance settings, and cooldown sliders.
+- Integrated `LootModule` into the `RuntimeEngine` execution loop (`src/midgard/runtime/engine.py`) prioritized below Heal and Evasion triggers but above Consumables, Combat, and Navigation tasks.
+- Created `tests/test_looting.py` validating color centroid coordinates evaluation.
+- Added GUI rule loads and saves test assertions in `tests/test_gui_rules.py` and `tests/test_gui_picker.py`.
+- Verified all 63 tests passing successfully under pytest.
+
 
 
 
