@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from midgard.profile import ProfileStore
+from midgard.runtime.launcher import RuntimeLauncher
 from midgard.ui.theme import Theme
 
 
@@ -117,6 +118,230 @@ class SettingsPage(Page):
 
     def _emit_theme(self) -> None:
         self.theme_selected.emit(str(self.theme_combo.currentData()))
+
+
+class RuntimeWorker(QThread):
+    """Worker thread that consumes TCP socket events from RuntimeLauncher."""
+
+    log_received = Signal(str, str)  # message, level
+    status_received = Signal(dict)
+    finished = Signal()
+
+    def __init__(self, launcher: RuntimeLauncher) -> None:
+        super().__init__()
+        self.launcher = launcher
+        self._running = True
+
+    def run(self) -> None:
+        while self._running and self.launcher.is_alive():
+            try:
+                event = self.launcher.receive_event(timeout=0.05)
+                if event:
+                    if event["type"] == "log":
+                        self.log_received.emit(event["message"], event.get("level", "INFO"))
+                    elif event["type"] == "status":
+                        self.status_received.emit(event)
+            except Exception:
+                pass
+        self.finished.emit()
+
+    def stop(self) -> None:
+        self._running = False
+
+
+class RuntimePage(Page):
+    """Runtime page that controls character automation engine loops."""
+
+    def __init__(self, profile_store: ProfileStore) -> None:
+        super().__init__(
+            "Runtime",
+            "Monitor active automation sessions and telemetry.",
+            "Runtime Control",
+            "Select a character profile and control the automation runtime below.",
+            card_eyebrow="AUTOMATION",
+        )
+        self.profile_store = profile_store
+        self.launcher: RuntimeLauncher | None = None
+        self.worker: RuntimeWorker | None = None
+
+        # 1. Profile selector layout
+        selector_layout = QHBoxLayout()
+        selector_label = QLabel("Active Profile:")
+        self.profile_combo = QComboBox()
+        selector_layout.addWidget(selector_label)
+        selector_layout.addWidget(self.profile_combo, 1)
+        self.card_layout.addLayout(selector_layout)
+
+        # 2. Control buttons layout
+        controls_layout = QHBoxLayout()
+        self.start_btn = QPushButton("Start")
+        self.start_btn.clicked.connect(self._start_runtime)
+        self.pause_btn = QPushButton("Pause")
+        self.pause_btn.clicked.connect(self._pause_runtime)
+        self.pause_btn.setEnabled(False)
+        self.stop_btn = QPushButton("Stop")
+        self.stop_btn.clicked.connect(self._stop_runtime)
+        self.stop_btn.setEnabled(False)
+
+        controls_layout.addWidget(self.start_btn)
+        controls_layout.addWidget(self.pause_btn)
+        controls_layout.addWidget(self.stop_btn)
+        self.card_layout.addLayout(controls_layout)
+
+        # 3. Telemetry card layout
+        telemetry_frame = QFrame()
+        telemetry_frame.setObjectName("contentCard")
+        tele_layout = QHBoxLayout(telemetry_frame)
+        self.status_lbl = QLabel("Status: Idle")
+        self.xp_lbl = QLabel("XP Gained: 0")
+        self.loot_lbl = QLabel("Loot: 0")
+        self.hp_lbl = QLabel("HP: --%")
+
+        tele_layout.addWidget(self.status_lbl)
+        tele_layout.addWidget(self.xp_lbl)
+        tele_layout.addWidget(self.loot_lbl)
+        tele_layout.addWidget(self.hp_lbl)
+        self.card_layout.addWidget(telemetry_frame)
+
+        # 4. Live log terminal styling
+        self.terminal = QTextEdit()
+        self.terminal.setReadOnly(True)
+        # Apply premium monospaced dark terminal style
+        self.terminal.setStyleSheet(
+            "background-color: #0b0f19;"
+            "color: #10b981;"
+            "font-family: 'Consolas', 'Courier New', monospace;"
+            "font-size: 11pt;"
+            "border: 1px solid #1e293b;"
+            "border-radius: 4px;"
+            "padding: 8px;"
+        )
+        self.terminal.setMinimumHeight(240)
+        self.card_layout.addWidget(self.terminal)
+
+        # Refresh profile list
+        self.refresh_profiles()
+
+    def refresh_profiles(self) -> None:
+        """Reload profile names from database."""
+        self.profile_combo.clear()
+        profiles = self.profile_store.list_profiles()
+        for p in profiles:
+            self.profile_combo.addItem(p.name, p.id)
+
+    def showEvent(self, event) -> None:
+        """Triggered when user clicks the navigation tab to view this page."""
+        super().showEvent(event)
+        self.refresh_profiles()
+
+    def _start_runtime(self) -> None:
+        """Launch the background character engine subprocess."""
+        profile_id = self.profile_combo.currentData()
+        if profile_id is None:
+            QMessageBox.warning(self, "No Profile", "Create a profile first.")
+            return
+
+        # Clean up any existing running launcher
+        self._cleanup_launcher()
+
+        import sys
+
+        use_dummy = "--dummy-input" in sys.argv
+
+        try:
+            self.launcher = RuntimeLauncher(
+                profile_id=profile_id,
+                database_path=self.profile_store.database_path,
+                use_dummy_input=use_dummy,
+            )
+            self.launcher.start()
+
+            # Enable/disable buttons
+            self.start_btn.setEnabled(False)
+            self.pause_btn.setEnabled(True)
+            self.stop_btn.setEnabled(True)
+            self.profile_combo.setEnabled(False)
+
+            self.status_lbl.setText("Status: Starting...")
+            self.terminal.clear()
+            self.terminal.append(">>> Starting Runtime launcher process...")
+
+            # Start worker thread
+            self.worker = RuntimeWorker(self.launcher)
+            self.worker.log_received.connect(self._on_log_received)
+            self.worker.status_received.connect(self._on_status_received)
+            self.worker.finished.connect(self._on_worker_finished)
+            self.worker.start()
+        except Exception as e:
+            QMessageBox.critical(self, "Launch Error", f"Failed to start engine: {e}")
+            self._cleanup_launcher()
+
+    def _pause_runtime(self) -> None:
+        """Toggle active/paused engine ticks execution state."""
+        if self.launcher and self.launcher.is_alive():
+            if self.pause_btn.text() == "Pause":
+                self.launcher.send_command("pause")
+                self.pause_btn.setText("Resume")
+                self.status_lbl.setText("Status: Paused")
+            else:
+                self.launcher.send_command("start")
+                self.pause_btn.setText("Pause")
+                self.status_lbl.setText("Status: Running")
+
+    def _stop_runtime(self) -> None:
+        """Gracefully request engine stop and process termination."""
+        if self.launcher:
+            self.launcher.send_command("stop")
+            self.terminal.append(">>> Sent stop command to engine process.")
+            self.pause_btn.setEnabled(False)
+            self.stop_btn.setEnabled(False)
+
+    def _on_log_received(self, message: str, level: str) -> None:
+        if "registration" in message.lower() or "connected" in message.lower():
+            if self.launcher:
+                self.launcher.send_command("start")
+                self.status_lbl.setText("Status: Running")
+
+        prefix = f"[{level}] " if level else ""
+        self.terminal.append(f"{prefix}{message}")
+
+    def _on_status_received(self, status: dict) -> None:
+        hp = status.get("hp_pct", 100)
+        xp = status.get("xp_gained", 0)
+        loot = status.get("loot_collected", 0)
+
+        self.hp_lbl.setText(f"HP: {hp}%")
+        self.xp_lbl.setText(f"XP Gained: {xp}")
+        self.loot_lbl.setText(f"Loot: {loot}")
+
+        if hp < 30:
+            self.hp_lbl.setStyleSheet("color: #ef4444; font-weight: bold;")
+        else:
+            self.hp_lbl.setStyleSheet("")
+
+    def _on_worker_finished(self) -> None:
+        self.status_lbl.setText("Status: Stopped")
+        self.start_btn.setEnabled(True)
+        self.pause_btn.setEnabled(False)
+        self.pause_btn.setText("Pause")
+        self.stop_btn.setEnabled(False)
+        self.profile_combo.setEnabled(True)
+        self.terminal.append(">>> Engine launcher process terminated.")
+
+    def _cleanup_launcher(self) -> None:
+        """Clean up the worker thread and terminate launcher process."""
+        if self.worker:
+            self.worker.stop()
+            self.worker.wait()
+            self.worker = None
+
+        if self.launcher:
+            self.launcher.terminate()
+            self.launcher = None
+
+    def closeEvent(self, event) -> None:
+        self._cleanup_launcher()
+        super().closeEvent(event)
 
 
 class LogsPage(Page):

@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from midgard.logging_setup import get_logger
 from midgard.profile import ProfileStore
 from midgard.settings import SettingsStore
-from midgard.ui.pages import AboutPage, LogsPage, Page, ProfilesPage, SettingsPage
+from midgard.ui.pages import AboutPage, LogsPage, Page, ProfilesPage, RuntimePage, SettingsPage
 from midgard.ui.theme import THEME_SETTING_KEY, Theme
 
 PAGE_NAMES = (
@@ -93,12 +93,7 @@ class MainWindow(QMainWindow):
                 "only through approved tasks.",
             ),
             "Profiles": ProfilesPage(self.profile_store),
-            "Runtime": Page(
-                "Runtime",
-                "Runtime status will appear here when that capability is approved.",
-                "Runtime not implemented",
-                "This page is intentionally informational and contains no runtime logic.",
-            ),
+            "Runtime": RuntimePage(self.profile_store),
             "Statistics": Page(
                 "Statistics",
                 "Future operational metrics will be presented here.",
@@ -177,3 +172,10 @@ class MainWindow(QMainWindow):
         if isinstance(settings_page, SettingsPage):
             settings_page.set_theme(theme)
         self._logger.info("Applied %s theme", theme.value)
+
+    def closeEvent(self, event) -> None:
+        """Ensure all child launchers are stopped before closing."""
+        runtime_page = self._pages.get("Runtime")
+        if isinstance(runtime_page, RuntimePage):
+            runtime_page._cleanup_launcher()
+        super().closeEvent(event)

@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-010 — Midgard Studio GUI Rules Integration.
+TASK-011 — Midgard Studio GUI Runtime Page Integration.
 
 ## Present
 
@@ -27,12 +27,13 @@ TASK-010 — Midgard Studio GUI Rules Integration.
 - Autonomous `NavigationModule` executing sequential waypoint walking loops via window client clicks and arrival timers
 - Autonomous `ConsumablesModule` evaluating duration intervals to recast buffs and use utility items
 - Interactive `ProfilesPage` with tabbed rule forms (Healing, Consumables, Combat, Navigation) that persist configurations directly into SQLite
+- Interactive `RuntimePage` allowing profile selection, start/pause/stop runtime triggers, background event collection via a non-blocking `RuntimeWorker` thread, live terminal logging, and operational statistics metrics (HP, XP, Loot)
 - Integration of GDI screen capture, input services, and multiple prioritized evaluation modules (Heal > Consumables > Combat > Navigation) into the active `RuntimeEngine` loop
 - Console and rotating-file application logging
 - Application version 0.2.0 displayed on the About page
 - uv dependency declaration and lock-file workflow
 - Ruff formatter and linter configuration
-- pytest coverage for package metadata, settings, character profiles, runtime/IPC, GDI capture, Win32/Dummy inputs, Heal triggers, Combat scanning, Waypoint navigation, Consumables timers, and Profiles rules GUI
+- pytest coverage for package metadata, settings, character profiles, runtime/IPC, GDI capture, Win32/Dummy inputs, Heal triggers, Combat scanning, Waypoint navigation, Consumables timers, Profiles rules GUI, and Runtime GUI
 - GitHub Actions quality workflow for Ubuntu Latest (selectively skipping Windows GDI capture and Win32 input/mouse tests)
 - Bootstrap, contributor, licensing, changelog, and project-memory documentation
 
@@ -59,7 +60,7 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 - Ruff formatting check passed
 - Ruff lint check passed
-- pytest passed with 38 tests
+- pytest passed with 39 tests
 - SQLite theme persistence passed across application starts
 - SQLite character profiles CRUD, rules, cascading deletion, and stats tracking passed
 - Runtime launcher, TCP protocol packing, engine cycle commands, and graceful subprocess termination passed
@@ -69,9 +70,10 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 - Navigation Module waypoint parsing, sequential index walking, wait cooldowns, and Heal/Combat interrupt priority tests passed
 - Consumables Module duration interval recasting, parser configuration, and prioritized (Heal > Consumables > Combat > Navigation) execution tests passed
 - Profiles GUI Rules Editor tab loading, selector creation, and database saving tests passed
+- Runtime GUI controller profile selection, start/pause/stop process triggers, worker thread updates, live logging terminal, and telemetry tests passed
 - Native Windows launch and dark/light theme screenshots were visually inspected
 - The uv lock resolves the full PySide6 dependency for CI installation
 
 ## Delivery state
 
-TASK-010 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-011 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

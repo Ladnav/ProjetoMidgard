@@ -105,3 +105,12 @@ not available at the time.
 - Implemented forms for all engine modules (Healing, Consumables, Combat, Navigation) mapped directly to SQLite settings fields via `ProfileStore`.
 - Added mock dialog coverage to test case GUI automation and verified UI forms, saving updates, and loading states without blocking modal popups.
 - Verified all 38 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+## 2026-06-28 — TASK-011 Midgard Studio GUI Runtime Page Integration
+
+- Replaced the placeholder runtime page in PySide6 app with an interactive execution engine controller (`RuntimePage`).
+- Implemented the `RuntimeWorker` `QThread` to read engine IPC TCP events in the background, updating the GUI with status and telemetry without blocking.
+- Implemented Start, Pause, and Stop buttons to control subprocess launches and states, displaying monospaced logger windows and real-time HP/XP/Loot stats.
+- Wired graceful termination lifecycle hooks inside MainWindow closeEvent to prevent lingering launcher or engine processes.
+- Added comprehensive unit and UI integration tests in `tests/test_gui_runtime.py`.
+- Verified all 39 tests passing under Python 3.14.5 and Ruff check formatting validation.
