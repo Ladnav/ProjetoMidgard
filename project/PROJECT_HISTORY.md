@@ -190,6 +190,15 @@ not available at the time.
 - Added GUI rule loads and saves test assertions in `tests/test_gui_rules.py` and `tests/test_gui_picker.py`.
 - Verified all 63 tests passing successfully under pytest.
 
+## 2026-06-28 — TASK-024 Advanced Combat OpenCV Target Scanning
+
+- Refactored `CombatModule` in `src/midgard/runtime/combat.py` to support three target scanning modes: Color Centroid, Monster Template Matching, and Hover HP Bar Sweep validation.
+- Implemented OpenCV-based template matching, loading monster sprites from a configurable directory.
+- Implemented a Hover HP Bar sweep pattern, checking red color thresholds above the cursor to validate valid targets.
+- Updated the Combat tab rules GUI in `src/midgard/ui/pages.py` to expose the new mode selectors, template match directories, threshold parameters, and hover check offset inputs.
+- Created `tests/test_combat_opencv.py` verifying template matching and hover HP bar scanning workflows.
+- Succeeded verification checks with all 66 tests passing successfully under pytest.
+
 
 
 

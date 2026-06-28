@@ -57,7 +57,18 @@ class CombatModule:
         return None
 
     def find_target(self, image: Image.Image) -> tuple[int, int] | None:
-        """Scan the image using grid steps to locate target pixels, returning centroid."""
+        """Scan the image using color centroid, template matching, or hover bar sweep."""
+        mode = self.rules.get("combat.scanning_mode", "color")
+
+        if mode == "template":
+            return self._find_target_template(image)
+        elif mode == "hover_bar":
+            return self._find_target_hover_bar(image)
+        else:
+            return self._find_target_color(image)
+
+    def _find_target_color(self, image: Image.Image) -> tuple[int, int] | None:
+        """Scan using grid steps to locate color matching pixels and return centroid."""
         width, height = image.size
         matching_pixels = []
 
@@ -77,10 +88,98 @@ class CombatModule:
                     matching_pixels.append((x, y))
 
         if len(matching_pixels) >= self.min_hits:
-            # Calculate centroid of matched pixel coordinates
             sum_x = sum(pt[0] for pt in matching_pixels)
             sum_y = sum(pt[1] for pt in matching_pixels)
             count = len(matching_pixels)
             return int(sum_x / count), int(sum_y / count)
+
+        return None
+
+    def _find_target_template(self, image: Image.Image) -> tuple[int, int] | None:
+        """Search screen using OpenCV template matching for specific monster templates."""
+        template_dir_str = self.rules.get("combat.template_dir", "")
+        if not template_dir_str:
+            return None
+
+        from pathlib import Path
+        import cv2
+        import numpy as np
+        
+        template_dir = Path(template_dir_str)
+        if not template_dir.exists():
+            return None
+
+        # Convert PIL to CV2 image
+        img_np = np.array(image.convert("RGB"))
+        img_cv = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+
+        # Iterate all PNG template sprites in directory
+        for f in template_dir.glob("*.png"):
+            tpl = cv2.imread(str(f))
+            if tpl is None:
+                continue
+
+            th = float(self.rules.get("combat.template_threshold", "0.8"))
+            res = cv2.matchTemplate(img_cv, tpl, cv2.TM_CCOEFF_NORMED)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+
+            if max_val >= th:
+                # Target centroid calculation: top-left x,y plus half width/height
+                h, w, _ = tpl.shape
+                tx = max_loc[0] + w // 2
+                ty = max_loc[1] + h // 2
+                return tx, ty
+
+        return None
+
+    def _find_target_hover_bar(self, image: Image.Image) -> tuple[int, int] | None:
+        """Move cursor in a grid pattern and inspect if red HP bar appears directly above."""
+        width, height = image.size
+        
+        # Grid positions to sweep
+        sweep_step_x = 80
+        sweep_step_y = 60
+        
+        # Coordinates offsets for HP Bar checking relative to cursor
+        offset_y = int(self.rules.get("combat.hover_offset_y", "-30"))
+        box_w = int(self.rules.get("combat.hover_box_w", "40"))
+        box_h = int(self.rules.get("combat.hover_box_h", "10"))
+        
+        # Color ranges of the red monster HP bar (default solid red)
+        red_r = int(self.rules.get("combat.hover_red_r", "255"))
+        red_g = int(self.rules.get("combat.hover_red_g", "0"))
+        red_b = int(self.rules.get("combat.hover_red_b", "0"))
+        tol = int(self.rules.get("combat.hover_tolerance", "25"))
+
+        # Sweep screen coordinates
+        for x in range(sweep_step_x, width - sweep_step_x, sweep_step_x):
+            for y in range(sweep_step_y, height - sweep_step_y, sweep_step_y):
+                # Briefly move mouse to sweep point
+                self.input_adapter.move_mouse_relative(self.hwnd, x, y)
+                time.sleep(0.02)  # 20ms quick sweep delay
+                
+                # Check target region above cursor coordinates
+                check_x1 = max(0, x - box_w // 2)
+                check_y1 = max(0, y + offset_y)
+                check_x2 = min(width, check_x1 + box_w)
+                check_y2 = min(height, check_y1 + box_h)
+                
+                crop = image.crop((check_x1, check_y1, check_x2, check_y2))
+                crop_pixels = crop.load()
+                
+                red_hits = 0
+                cw, ch = crop.size
+                for cy in range(ch):
+                    for cx in range(cw):
+                        px = crop_pixels[cx, cy]
+                        dr = abs(px[0] - red_r)
+                        dg = abs(px[1] - red_g)
+                        db = abs(px[2] - red_b)
+                        if dr <= tol and dg <= tol and db <= tol:
+                            red_hits += 1
+                
+                # If enough matching red pixels of the monster HP bar are found, target accepted!
+                if red_hits >= 15:
+                    return x, y
 
         return None

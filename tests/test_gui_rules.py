@@ -61,6 +61,16 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     profiles_page.combat_target_r.setValue(200)
     profiles_page.combat_target_g.setValue(50)
     profiles_page.combat_target_b.setValue(50)
+    
+    # Edit OpenCV rules in UI
+    idx = profiles_page.combat_scanning_mode.findData("template")
+    if idx >= 0:
+        profiles_page.combat_scanning_mode.setCurrentIndex(idx)
+    profiles_page.combat_template_dir.setText("templates/monsters/")
+    profiles_page.combat_template_threshold.setValue(0.75)
+    profiles_page.combat_hover_offset_y.setValue(-45)
+    profiles_page.combat_hover_box_w.setValue(30)
+    profiles_page.combat_hover_box_h.setValue(8)
 
     profiles_page.nav_enabled.setChecked(True)
     profiles_page.nav_waypoints_text.setPlainText("150,150,2.5;300,300,5.0")
@@ -116,6 +126,12 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     assert combat_rules.get("combat.target_r") == "200"
     assert combat_rules.get("combat.target_g") == "50"
     assert combat_rules.get("combat.target_b") == "50"
+    assert combat_rules.get("combat.scanning_mode") == "template"
+    assert combat_rules.get("combat.template_dir") == "templates/monsters/"
+    assert combat_rules.get("combat.template_threshold") == "0.75"
+    assert combat_rules.get("combat.hover_offset_y") == "-45"
+    assert combat_rules.get("combat.hover_box_w") == "30"
+    assert combat_rules.get("combat.hover_box_h") == "8"
 
     navigation_rules = db_profile.rules.get("navigation", {})
     assert navigation_rules.get("navigation.enabled") == "true"

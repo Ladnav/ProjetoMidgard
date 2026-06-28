@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-023 — Auto-Looting Module.
+TASK-024 — Advanced Combat OpenCV Target Scanning.
 
 ## Present
 
@@ -24,10 +24,10 @@ TASK-023 — Auto-Looting Module.
 - Client-to-screen coordinate converter using Win32 API (`ClientToScreen`) to support window-relative mouse actions
 - Autonomous `HealModule` cropping HP/SP character status regions and executing template-matching character OCR to parse actual health ratios (supporting both HP/SP independently)
 - Zero-dependency `DigitRecognizer` resolving digit outputs (e.g. '120/150' or '90%') from binarized UI crops and computing exact health metrics
-- Autonomous `CombatModule` performing color-based target scanning (centroid detection of matching pixel clusters) and triggering mouse attack commands
+- Autonomous `CombatModule` performing target scanning: color-based centroid, OpenCV template matching (monsters sprites folders), and Hover Red HP Bar cursor validations.
 - Autonomous `NavigationModule` executing sequential waypoint walking loops via window client clicks and arrival timers
 - Autonomous `ConsumablesModule` evaluating duration intervals to recast buffs and use utility items
-- Interactive `ProfilesPage` with tabbed rule forms (Healing, Consumables, Looting, Combat, Navigation) that persist configurations directly into SQLite. Healing tab contains a 'Verify Crop' modal helper to visually inspect cropped image segments (scaled x3) and check parsed OCR values before starting the engine. The Looting tab allows configuring dropped item name label colors, color tolerance, and cooldowns.
+- Interactive `ProfilesPage` with tabbed rule forms (Healing, Consumables, Looting, Combat, Navigation) that persist configurations directly into SQLite. Healing tab contains a 'Verify Crop' modal helper to visually inspect cropped image segments (scaled x3) and check parsed OCR values before starting the engine. The Looting tab allows configuring dropped item name label colors, color tolerance, and cooldowns. The Combat tab configures multiple OpenCV target modes, template offsets, and hover check box dimensions.
 - Interactive `RuntimePage` allowing profile selection, start/pause/stop runtime triggers, background event collection via a non-blocking `RuntimeWorker` thread, live terminal logging, and operational statistics metrics (HP, XP, Loot)
 - Searchable and clearable `LogsPage` visual terminal with real-time file reading, filtering by text patterns, and severity level selections (INFO, WARNING, ERROR)
 - Active `StatisticsPage` displaying profile operational metrics (XP accumulated, loot collected, deaths, session times) directly queried from SQLite storage
@@ -74,7 +74,7 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 - Ruff formatting check passed
 - Ruff lint check passed
-- pytest passed with 63 tests
+- pytest passed with 66 tests
 - SQLite theme persistence passed across application starts
 - SQLite character profiles CRUD, rules, cascading deletion, and stats tracking passed
 - Runtime launcher, TCP protocol packing, engine cycle commands, and graceful subprocess termination passed
@@ -98,4 +98,4 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 ## Delivery state
 
-TASK-023 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-024 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

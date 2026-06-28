@@ -906,8 +906,38 @@ class ProfilesPage(Page):
         self.combat_max_cooldown = QDoubleSpinBox()
         self.combat_max_cooldown.setRange(0.0, 10.0)
 
-        layout.addRow(self.combat_enabled)
+        # Scanning mode configurations (TASK-024)
+        self.combat_scanning_mode = QComboBox()
+        self.combat_scanning_mode.addItem("Color Centroid", "color")
+        self.combat_scanning_mode.addItem("Monster Template Matching", "template")
+        self.combat_scanning_mode.addItem("Hover HP Bar Sweep", "hover_bar")
 
+        self.combat_template_dir = QLineEdit()
+        self.combat_template_dir.setPlaceholderText("e.g. templates/monsters/")
+        self.combat_template_threshold = QDoubleSpinBox()
+        self.combat_template_threshold.setRange(0.1, 1.0)
+        self.combat_template_threshold.setValue(0.8)
+        self.combat_template_threshold.setSingleStep(0.05)
+
+        self.combat_hover_offset_y = QSpinBox()
+        self.combat_hover_offset_y.setRange(-200, 200)
+        self.combat_hover_offset_y.setValue(-30)
+
+        self.combat_hover_box_w = QSpinBox()
+        self.combat_hover_box_w.setRange(5, 500)
+        self.combat_hover_box_w.setValue(40)
+
+        self.combat_hover_box_h = QSpinBox()
+        self.combat_hover_box_h.setRange(2, 500)
+        self.combat_hover_box_h.setValue(10)
+
+        layout.addRow(self.combat_enabled)
+        layout.addRow("Target Scanning Mode", self.combat_scanning_mode)
+
+        # Mode options separator line
+        layout.addRow(QFrame())
+
+        # 1. Color mode layout elements
         color_layout = QHBoxLayout()
         color_layout.addWidget(QLabel("R:"))
         color_layout.addWidget(self.combat_target_r)
@@ -918,18 +948,33 @@ class ProfilesPage(Page):
         self.combat_pick_btn = QPushButton("Pick Color")
         self.combat_pick_btn.clicked.connect(self._pick_combat_color)
         color_layout.addWidget(self.combat_pick_btn)
-        layout.addRow("Target RGB Color", color_layout)
-
-        layout.addRow("Color Match Tolerance", self.combat_color_tolerance)
+        layout.addRow("Color mode: RGB Target", color_layout)
+        layout.addRow("Color mode: Tolerance", self.combat_color_tolerance)
 
         step_layout = QHBoxLayout()
         step_layout.addWidget(QLabel("Step X:"))
         step_layout.addWidget(self.combat_step_x)
         step_layout.addWidget(QLabel("Step Y:"))
         step_layout.addWidget(self.combat_step_y)
-        layout.addRow("Grid Scan Steps", step_layout)
+        layout.addRow("Color mode: Grid Steps", step_layout)
+        layout.addRow("Color mode: Min Hits", self.combat_min_hits)
 
-        layout.addRow("Min Match Pixels (Hits)", self.combat_min_hits)
+        # 2. Template matching mode elements
+        layout.addRow("Template mode: Directory", self.combat_template_dir)
+        layout.addRow("Template mode: Threshold", self.combat_template_threshold)
+
+        # 3. Hover HP bar mode elements
+        hover_size_layout = QHBoxLayout()
+        hover_size_layout.addWidget(QLabel("Offset Y:"))
+        hover_size_layout.addWidget(self.combat_hover_offset_y)
+        hover_size_layout.addWidget(QLabel("Box W:"))
+        hover_size_layout.addWidget(self.combat_hover_box_w)
+        hover_size_layout.addWidget(QLabel("Box H:"))
+        hover_size_layout.addWidget(self.combat_hover_box_h)
+        layout.addRow("Hover mode: Check Box Sizes", hover_size_layout)
+
+        # Separator line
+        layout.addRow(QFrame())
 
         cd_layout = QHBoxLayout()
         cd_layout.addWidget(QLabel("Min (s):"))
@@ -1013,6 +1058,13 @@ class ProfilesPage(Page):
         # Load Combat rules
         combat = rules.get("combat", {})
         self.combat_enabled.setChecked(combat.get("combat.enabled", "false").lower() == "true")
+        
+        # Load combobox index based on string values
+        curr_mode = combat.get("combat.scanning_mode", "color")
+        idx = self.combat_scanning_mode.findData(curr_mode)
+        if idx >= 0:
+            self.combat_scanning_mode.setCurrentIndex(idx)
+
         self.combat_target_r.setValue(int(combat.get("combat.target_r", "255")))
         self.combat_target_g.setValue(int(combat.get("combat.target_g", "0")))
         self.combat_target_b.setValue(int(combat.get("combat.target_b", "0")))
@@ -1022,6 +1074,12 @@ class ProfilesPage(Page):
         self.combat_min_hits.setValue(int(combat.get("combat.min_hits", "3")))
         self.combat_min_cooldown.setValue(float(combat.get("combat.min_cooldown", "1.0")))
         self.combat_max_cooldown.setValue(float(combat.get("combat.max_cooldown", "2.0")))
+
+        self.combat_template_dir.setText(combat.get("combat.template_dir", ""))
+        self.combat_template_threshold.setValue(float(combat.get("combat.template_threshold", "0.8")))
+        self.combat_hover_offset_y.setValue(int(combat.get("combat.hover_offset_y", "-30")))
+        self.combat_hover_box_w.setValue(int(combat.get("combat.hover_box_w", "40")))
+        self.combat_hover_box_h.setValue(int(combat.get("combat.hover_box_h", "10")))
 
         # Load Navigation rules
         nav = rules.get("navigation", {})
@@ -1166,6 +1224,26 @@ class ProfilesPage(Page):
             )
             self.profile_store.set_rule(
                 profile_id, "combat", "combat.max_cooldown", str(self.combat_max_cooldown.value())
+            )
+            
+            # Save OpenCV configurations (TASK-024)
+            self.profile_store.set_rule(
+                profile_id, "combat", "combat.scanning_mode", self.combat_scanning_mode.currentData()
+            )
+            self.profile_store.set_rule(
+                profile_id, "combat", "combat.template_dir", self.combat_template_dir.text().strip()
+            )
+            self.profile_store.set_rule(
+                profile_id, "combat", "combat.template_threshold", str(self.combat_template_threshold.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "combat", "combat.hover_offset_y", str(self.combat_hover_offset_y.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "combat", "combat.hover_box_w", str(self.combat_hover_box_w.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "combat", "combat.hover_box_h", str(self.combat_hover_box_h.value())
             )
 
             # 4. Save Navigation rules
