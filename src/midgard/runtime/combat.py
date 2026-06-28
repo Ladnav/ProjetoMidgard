@@ -113,8 +113,25 @@ class CombatModule:
         img_np = np.array(image.convert("RGB"))
         img_cv = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
 
-        # Iterate all PNG template sprites in directory
-        for f in template_dir.glob("*.png"):
+        priority_enabled = self.rules.get("combat.priority_enabled", "false").lower() == "true"
+        
+        # Build file list sorted by priority folders if enabled
+        template_files = []
+        if priority_enabled:
+            high_pri_dir = template_dir / "high_priority"
+            low_pri_dir = template_dir / "low_priority"
+            
+            if high_pri_dir.exists():
+                template_files.extend(list(high_pri_dir.glob("*.png")))
+            if low_pri_dir.exists():
+                template_files.extend(list(low_pri_dir.glob("*.png")))
+                
+        # Append main folder files if any remaining or if priority is disabled
+        main_files = [f for f in template_dir.glob("*.png") if f.name != "high_priority" and f.name != "low_priority"]
+        template_files.extend(main_files)
+
+        # Iterate templates in order
+        for f in template_files:
             tpl = cv2.imread(str(f))
             if tpl is None:
                 continue

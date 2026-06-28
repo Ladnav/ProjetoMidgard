@@ -851,6 +851,40 @@ class ProfilesPage(Page):
         self.consumables_text.setPlaceholderText("e.g. concentration,F5,1800.0;agi_up,F6,240.0")
         layout.addWidget(self.consumables_text)
 
+        self.status_bar_enabled = QCheckBox("Check Active Status Bar Icons before casting")
+        layout.addWidget(self.status_bar_enabled)
+
+        status_layout = QHBoxLayout()
+        self.status_check_x = QSpinBox()
+        self.status_check_x.setRange(0, 3000)
+        self.status_check_x.setValue(50)
+        self.status_check_y = QSpinBox()
+        self.status_check_y.setRange(0, 3000)
+        self.status_check_y.setValue(50)
+        status_layout.addWidget(QLabel("Icon X:"))
+        status_layout.addWidget(self.status_check_x)
+        status_layout.addWidget(QLabel("Y:"))
+        status_layout.addWidget(self.status_check_y)
+        
+        self.status_color_r = QSpinBox()
+        self.status_color_r.setRange(0, 255)
+        self.status_color_r.setValue(255)
+        self.status_color_g = QSpinBox()
+        self.status_color_g.setRange(0, 255)
+        self.status_color_g.setValue(255)
+        self.status_color_b = QSpinBox()
+        self.status_color_b.setRange(0, 255)
+        self.status_color_b.setValue(255)
+        
+        status_layout.addWidget(QLabel("R:"))
+        status_layout.addWidget(self.status_color_r)
+        status_layout.addWidget(QLabel("G:"))
+        status_layout.addWidget(self.status_color_g)
+        status_layout.addWidget(QLabel("B:"))
+        status_layout.addWidget(self.status_color_b)
+        
+        layout.addLayout(status_layout)
+
         self.tab_widget.addTab(tab, "Consumables")
 
     def _init_looting_tab(self) -> None:
@@ -895,6 +929,36 @@ class ProfilesPage(Page):
         layout.addRow("Loot Name Color (RGB)", color_layout)
         layout.addRow("Color Match Tolerance", self.loot_color_tolerance)
         layout.addRow("Looting Cooldown Delay (s)", self.loot_cooldown)
+
+        # Rare item color filter widgets (TASK-029)
+        self.loot_filter_mode = QComboBox()
+        self.loot_filter_mode.addItem("Loot All Matching", "all")
+        self.loot_filter_mode.addItem("Loot Rare Items Only (Red)", "rare_only")
+
+        self.loot_rare_color_r = QSpinBox()
+        self.loot_rare_color_r.setRange(0, 255)
+        self.loot_rare_color_r.setValue(255)
+        self.loot_rare_color_g = QSpinBox()
+        self.loot_rare_color_g.setRange(0, 255)
+        self.loot_rare_color_g.setValue(0)
+        self.loot_rare_color_b = QSpinBox()
+        self.loot_rare_color_b.setRange(0, 255)
+        self.loot_rare_color_b.setValue(0)
+        self.loot_rare_tolerance = QSpinBox()
+        self.loot_rare_tolerance.setRange(0, 255)
+        self.loot_rare_tolerance.setValue(30)
+
+        layout.addRow("Filter Loot Mode", self.loot_filter_mode)
+        
+        rare_color_layout = QHBoxLayout()
+        rare_color_layout.addWidget(QLabel("R:"))
+        rare_color_layout.addWidget(self.loot_rare_color_r)
+        rare_color_layout.addWidget(QLabel("G:"))
+        rare_color_layout.addWidget(self.loot_rare_color_g)
+        rare_color_layout.addWidget(QLabel("B:"))
+        rare_color_layout.addWidget(self.loot_rare_color_b)
+        layout.addRow("Rare Color Filter (RGB)", rare_color_layout)
+        layout.addRow("Rare Tolerance", self.loot_rare_tolerance)
 
         self.tab_widget.addTab(tab, "Looting")
 
@@ -980,6 +1044,8 @@ class ProfilesPage(Page):
         layout.addRow("Color mode: Min Hits", self.combat_min_hits)
 
         # 2. Template matching mode elements
+        self.combat_priority_enabled = QCheckBox("Enable Target Priorities (high/low priority subdirs)")
+        layout.addRow("Template mode: Priority Sorting", self.combat_priority_enabled)
         layout.addRow("Template mode: Directory", self.combat_template_dir)
         layout.addRow("Template mode: Threshold", self.combat_template_threshold)
 
@@ -1162,6 +1228,12 @@ class ProfilesPage(Page):
             cons.get("consumables.enabled", "false").lower() == "true"
         )
         self.consumables_text.setPlainText(cons.get("consumables.items", ""))
+        self.status_bar_enabled.setChecked(cons.get("consumables.status_bar_enabled", "false").lower() == "true")
+        self.status_check_x.setValue(int(cons.get("consumables.status_check_x", "50")))
+        self.status_check_y.setValue(int(cons.get("consumables.status_check_y", "50")))
+        self.status_color_r.setValue(int(cons.get("consumables.status_color_r", "255")))
+        self.status_color_g.setValue(int(cons.get("consumables.status_color_g", "255")))
+        self.status_color_b.setValue(int(cons.get("consumables.status_color_b", "255")))
 
         # Load Looting rules
         loot = rules.get("looting", {})
@@ -1171,6 +1243,14 @@ class ProfilesPage(Page):
         self.loot_color_b.setValue(int(loot.get("loot.color.b", "220")))
         self.loot_color_tolerance.setValue(int(loot.get("loot.color.tolerance", "15")))
         self.loot_cooldown.setValue(float(loot.get("loot.cooldown", "1.0")))
+        
+        filt_idx = self.loot_filter_mode.findData(loot.get("loot.filter_mode", "all"))
+        if filt_idx >= 0:
+            self.loot_filter_mode.setCurrentIndex(filt_idx)
+        self.loot_rare_color_r.setValue(int(loot.get("loot.rare_color.r", "255")))
+        self.loot_rare_color_g.setValue(int(loot.get("loot.rare_color.g", "0")))
+        self.loot_rare_color_b.setValue(int(loot.get("loot.rare_color.b", "0")))
+        self.loot_rare_tolerance.setValue(int(loot.get("loot.rare_tolerance", "30")))
 
         # Load Combat rules
         combat = rules.get("combat", {})
@@ -1194,6 +1274,7 @@ class ProfilesPage(Page):
 
         self.combat_template_dir.setText(combat.get("combat.template_dir", ""))
         self.combat_template_threshold.setValue(float(combat.get("combat.template_threshold", "0.8")))
+        self.combat_priority_enabled.setChecked(combat.get("combat.priority_enabled", "false").lower() == "true")
         self.combat_hover_offset_y.setValue(int(combat.get("combat.hover_offset_y", "-30")))
         self.combat_hover_box_w.setValue(int(combat.get("combat.hover_box_w", "40")))
         self.combat_hover_box_h.setValue(int(combat.get("combat.hover_box_h", "10")))
@@ -1314,6 +1395,42 @@ class ProfilesPage(Page):
                 "consumables.items",
                 self.consumables_text.toPlainText().strip(),
             )
+            self.profile_store.set_rule(
+                profile_id,
+                "consumables",
+                "consumables.status_bar_enabled",
+                str(self.status_bar_enabled.isChecked()).lower(),
+            )
+            self.profile_store.set_rule(
+                profile_id,
+                "consumables",
+                "consumables.status_check_x",
+                str(self.status_check_x.value()),
+            )
+            self.profile_store.set_rule(
+                profile_id,
+                "consumables",
+                "consumables.status_check_y",
+                str(self.status_check_y.value()),
+            )
+            self.profile_store.set_rule(
+                profile_id,
+                "consumables",
+                "consumables.status_color_r",
+                str(self.status_color_r.value()),
+            )
+            self.profile_store.set_rule(
+                profile_id,
+                "consumables",
+                "consumables.status_color_g",
+                str(self.status_color_g.value()),
+            )
+            self.profile_store.set_rule(
+                profile_id,
+                "consumables",
+                "consumables.status_color_b",
+                str(self.status_color_b.value()),
+            )
 
             # Save Looting rules
             self.profile_store.set_rule(
@@ -1333,6 +1450,21 @@ class ProfilesPage(Page):
             )
             self.profile_store.set_rule(
                 profile_id, "looting", "loot.cooldown", str(self.loot_cooldown.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "looting", "loot.filter_mode", self.loot_filter_mode.currentData()
+            )
+            self.profile_store.set_rule(
+                profile_id, "looting", "loot.rare_color.r", str(self.loot_rare_color_r.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "looting", "loot.rare_color.g", str(self.loot_rare_color_g.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "looting", "loot.rare_color.b", str(self.loot_rare_color_b.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "looting", "loot.rare_tolerance", str(self.loot_rare_tolerance.value())
             )
 
             # 3. Save Combat rules
@@ -1379,6 +1511,9 @@ class ProfilesPage(Page):
             )
             self.profile_store.set_rule(
                 profile_id, "combat", "combat.template_threshold", str(self.combat_template_threshold.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "combat", "combat.priority_enabled", str(self.combat_priority_enabled.isChecked()).lower()
             )
             self.profile_store.set_rule(
                 profile_id, "combat", "combat.hover_offset_y", str(self.combat_hover_offset_y.value())

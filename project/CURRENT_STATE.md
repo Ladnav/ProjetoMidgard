@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-028 — Polymorphic Curves, Restocking, and Discord Webhooks.
+TASK-029 — Advanced Buffs, Priority Targets, and Color Loot Filters.
 
 ## Present
 
@@ -24,14 +24,16 @@ TASK-028 — Polymorphic Curves, Restocking, and Discord Webhooks.
 - Client-to-screen coordinate converter using Win32 API (`ClientToScreen`) to support window-relative mouse actions
 - Autonomous `HealModule` cropping HP/SP character status regions and executing template-matching character OCR to parse actual health ratios (supporting both HP/SP independently)
 - Zero-dependency `DigitRecognizer` resolving digit outputs (e.g. '120/150' or '90%') from binarized UI crops and computing exact health metrics
-- Autonomous `CombatModule` performing target scanning: color-based centroid, OpenCV template matching (monsters sprites folders), and Hover Red HP Bar cursor validations.
+- Autonomous `CombatModule` performing target scanning: color-based centroid, prioritized template matching (nested high/low priority subdirs), and Hover Red HP Bar cursor validations.
 - Autonomous `NavigationModule` executing sequential waypoint walking loops, loading obstacle maps from PNG/BMP visual images and JSON coordinate matrices, and routing paths via A* pathfinding.
 - Autonomous `StashModule` monitoring weight indicators and running automated Kafra storage banking and merchant restock purchasing workflows.
 - `DiscordNotifier` posting real-time warning alerts and webhook messages on visual anomaly triggers.
+- Autonomous `ConsumablesModule` evaluating duration intervals or visual active status bar icons check states to cast buffs and use utility items.
 - Autonomous `ConsumablesModule` evaluating duration intervals to recast buffs and use utility items
-- Interactive `ProfilesPage` with tabbed rule forms (Healing, Consumables, Looting, Combat, Navigation, Security, Stash) that persist configurations directly into SQLite. Healing tab contains a 'Verify Crop' modal helper to visually inspect cropped image segments (scaled x3) and check parsed OCR values before starting the engine. The Looting tab allows configuring dropped item name label colors, color tolerance, and cooldowns. The Combat tab configures multiple OpenCV target modes, template offsets, and hover check box dimensions. The Security tab manages Discord webhook urls.
+- Interactive `ProfilesPage` with tabbed rule forms (Healing, Consumables, Looting, Combat, Navigation, Security, Stash) that persist configurations directly into SQLite. Healing tab contains a 'Verify Crop' modal helper to visually inspect cropped image segments (scaled x3) and check parsed OCR values before starting the engine. The Looting tab allows configuring dropped item name label colors, color tolerance, cooldowns, and advanced rare-item filter rules. The Combat tab configures multiple OpenCV target modes, target priority checklists, template offsets, and hover check box dimensions. The Security tab manages Discord webhook urls.
 - SettingsPage containing appearance theme selectors, GameGuard Evasion Desktop Capture Fallback checks, and border safety input clamps.
 - Polymorphic Bezier trajectories injecting Gaussian noise jitter to simulate realistic mouse hand movements.
+- Advanced color-filtered `LootModule` supporting selective looting rules based on dropped item label colors (e.g. Rare Only).
 - Interactive `RuntimePage` allowing profile selection, start/pause/stop runtime triggers, background event collection via a non-blocking `RuntimeWorker` thread, live terminal logging, and operational statistics metrics (HP, XP, Loot)
 - Searchable and clearable `LogsPage` visual terminal with real-time file reading, filtering by text patterns, and severity level selections (INFO, WARNING, ERROR)
 - Active `StatisticsPage` displaying profile operational metrics (XP accumulated, loot collected, deaths, session times) directly queried from SQLite storage
@@ -78,7 +80,7 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 - Ruff formatting check passed
 - Ruff lint check passed
-- pytest passed with 72 tests
+- pytest passed with 75 tests
 - SQLite theme persistence passed across application starts
 - SQLite character profiles CRUD, rules, cascading deletion, and stats tracking passed
 - Runtime launcher, TCP protocol packing, engine cycle commands, and graceful subprocess termination passed
@@ -102,4 +104,4 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 ## Delivery state
 
-TASK-028 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-029 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

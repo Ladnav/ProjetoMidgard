@@ -227,6 +227,14 @@ not available at the time.
 - Updated Security and Stash GUI settings rules in `src/midgard/ui/pages.py` to support discord webhooks and merchant restocks.
 - Created `tests/test_polymorphic_discord.py` and succeeded verification check with all 72 tests passing.
 
+## 2026-06-28 — TASK-029 Buff Monitoring, Combat Target Priority, and Advanced Color Loot Filters
+
+- Implemented visual active status icon checking at configured HUD pixel coordinates inside `ConsumablesModule` (`src/midgard/runtime/consumables.py`) to skip casting when buff statuses are active.
+- Added subdirectory prioritized sorting (e.g. high_priority, low_priority) for monster sprites template files inside `CombatModule` (`src/midgard/runtime/combat.py`).
+- Added color-filtered selective looting support (e.g. Loot Rare Only Red cartelas/blue gears) inside `LootModule` (`src/midgard/runtime/loot.py`).
+- Integrated status checks, priority checkboxes, and advanced looting filter options under Consumables, Combat, and Looting tab UI fields (`src/midgard/ui/pages.py`).
+- Created `tests/test_advanced_features.py` and succeeded verification check with all 75 tests passing.
+
 
 
 

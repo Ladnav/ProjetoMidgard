@@ -56,6 +56,12 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
 
     profiles_page.consumables_enabled.setChecked(True)
     profiles_page.consumables_text.setPlainText("berserk_potion,F5,180.0")
+    profiles_page.status_bar_enabled.setChecked(True)
+    profiles_page.status_check_x.setValue(60)
+    profiles_page.status_check_y.setValue(60)
+    profiles_page.status_color_r.setValue(250)
+    profiles_page.status_color_g.setValue(250)
+    profiles_page.status_color_b.setValue(250)
 
     profiles_page.combat_enabled.setChecked(True)
     profiles_page.combat_target_r.setValue(200)
@@ -68,6 +74,7 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
         profiles_page.combat_scanning_mode.setCurrentIndex(idx)
     profiles_page.combat_template_dir.setText("templates/monsters/")
     profiles_page.combat_template_threshold.setValue(0.75)
+    profiles_page.combat_priority_enabled.setChecked(True)
     profiles_page.combat_hover_offset_y.setValue(-45)
     profiles_page.combat_hover_box_w.setValue(30)
     profiles_page.combat_hover_box_h.setValue(8)
@@ -82,6 +89,14 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     profiles_page.loot_color_b.setValue(225)
     profiles_page.loot_color_tolerance.setValue(10)
     profiles_page.loot_cooldown.setValue(2.5)
+    
+    loot_filt_idx = profiles_page.loot_filter_mode.findData("rare_only")
+    if loot_filt_idx >= 0:
+        profiles_page.loot_filter_mode.setCurrentIndex(loot_filt_idx)
+    profiles_page.loot_rare_color_r.setValue(255)
+    profiles_page.loot_rare_color_g.setValue(10)
+    profiles_page.loot_rare_color_b.setValue(10)
+    profiles_page.loot_rare_tolerance.setValue(25)
 
     # Edit Security rules in UI
     profiles_page.sec_enabled.setChecked(True)
@@ -133,6 +148,12 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     consumables_rules = db_profile.rules.get("consumables", {})
     assert consumables_rules.get("consumables.enabled") == "true"
     assert consumables_rules.get("consumables.items") == "berserk_potion,F5,180.0"
+    assert consumables_rules.get("consumables.status_bar_enabled") == "true"
+    assert consumables_rules.get("consumables.status_check_x") == "60"
+    assert consumables_rules.get("consumables.status_check_y") == "60"
+    assert consumables_rules.get("consumables.status_color_r") == "250"
+    assert consumables_rules.get("consumables.status_color_g") == "250"
+    assert consumables_rules.get("consumables.status_color_b") == "250"
 
     looting_rules = db_profile.rules.get("looting", {})
     assert looting_rules.get("loot.enabled") == "true"
@@ -141,6 +162,11 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     assert looting_rules.get("loot.color.b") == "225"
     assert looting_rules.get("loot.color.tolerance") == "10"
     assert looting_rules.get("loot.cooldown") == "2.5"
+    assert looting_rules.get("loot.filter_mode") == "rare_only"
+    assert looting_rules.get("loot.rare_color.r") == "255"
+    assert looting_rules.get("loot.rare_color.g") == "10"
+    assert looting_rules.get("loot.rare_color.b") == "10"
+    assert looting_rules.get("loot.rare_tolerance") == "25"
 
     combat_rules = db_profile.rules.get("combat", {})
     assert combat_rules.get("combat.enabled") == "true"
@@ -150,6 +176,7 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     assert combat_rules.get("combat.scanning_mode") == "template"
     assert combat_rules.get("combat.template_dir") == "templates/monsters/"
     assert combat_rules.get("combat.template_threshold") == "0.75"
+    assert combat_rules.get("combat.priority_enabled") == "true"
     assert combat_rules.get("combat.hover_offset_y") == "-45"
     assert combat_rules.get("combat.hover_box_w") == "30"
     assert combat_rules.get("combat.hover_box_h") == "8"

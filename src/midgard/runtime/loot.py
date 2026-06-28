@@ -22,6 +22,13 @@ class LootModule:
 
         self.last_loot_time = 0.0
 
+        # Rarity/Color-Filtered Looting Rules (TASK-029)
+        self.loot_filter_mode = rules.get("loot.filter_mode", "all")  # 'all', 'rare_only', 'equipment_only'
+        self.rare_color_r = int(rules.get("loot.rare_color.r", "255"))
+        self.rare_color_g = int(rules.get("loot.rare_color.g", "0"))
+        self.rare_color_b = int(rules.get("loot.rare_color.b", "0"))
+        self.rare_tolerance = int(rules.get("loot.rare_tolerance", "30"))
+
     def evaluate(self, image) -> str | None:
         """Scan the screen for matching item labels, calculate the centroid, and click."""
         if not self.enabled:
@@ -34,6 +41,14 @@ class LootModule:
         width, height = image.size
         matching_pixels = []
 
+        # Determine target color based on filter mode
+        target_r, target_g, target_b = self.loot_r, self.loot_g, self.loot_b
+        tolerance = self.color_tolerance
+
+        if self.loot_filter_mode == "rare_only":
+            target_r, target_g, target_b = self.rare_color_r, self.rare_color_g, self.rare_color_b
+            tolerance = self.rare_tolerance
+
         # Performance optimization: scan with coordinate step intervals
         for y in range(0, height, self.step_y):
             for x in range(0, width, self.step_x):
@@ -41,9 +56,9 @@ class LootModule:
                 r, g, b = pixel[0], pixel[1], pixel[2]
                 
                 # Check target color matching
-                if (abs(r - self.loot_r) <= self.color_tolerance and
-                        abs(g - self.loot_g) <= self.color_tolerance and
-                        abs(b - self.loot_b) <= self.color_tolerance):
+                if (abs(r - target_r) <= tolerance and
+                        abs(g - target_g) <= tolerance and
+                        abs(b - target_b) <= tolerance):
                     matching_pixels.append((x, y))
 
         if not matching_pixels:
@@ -59,4 +74,4 @@ class LootModule:
         self.input_adapter.click_mouse()
 
         self.last_loot_time = now
-        return f"Auto-Loot clicked on item label at coordinates: ({centroid_x}, {centroid_y})"
+        return f"Auto-Loot clicked on item label ({self.loot_filter_mode} mode) at coordinates: ({centroid_x}, {centroid_y})"
