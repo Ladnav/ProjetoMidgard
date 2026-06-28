@@ -133,3 +133,21 @@ not available at the time.
 - Created `tests/test_antidetect_alarms.py` to verify Bezier calculation, hold time delays, and alarm notifications.
 - Verified all 48 tests passing under Python 3.14.5 and Ruff format validation.
 
+## 2026-06-28 — TASK-014 A* Pathfinding & Emergency Evasion
+
+- Implemented grid-based A* pathfinding search in `src/midgard/runtime/pathfinding.py` to route coordinates around map obstacles.
+- Integrated pathfinder within the sequential waypoint loops of `src/midgard/runtime/navigation.py`.
+- Implemented `EvasionModule` inside `src/midgard/runtime/evasion.py` to trigger hotkeys (e.g. Teleport F9) during critical HP danger levels.
+- Created `tests/test_pathfinding_evasion.py` verifying path searching, blocked routes, and panic evasion hotkey triggers.
+- Verified all 52 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+## 2026-06-28 — TASK-015 OpenCV Template Matching Recognition
+
+- Added `opencv-python-headless` dependency to the project package config (`pyproject.toml`).
+- Implemented `TemplateDetector` in `src/midgard/vision/detector.py` performing BGR-aligned image sub-search matching via OpenCV's `TM_SQDIFF_NORMED`.
+- Wired template checks into the main execution cycle in `src/midgard/runtime/engine.py` to report matches and trigger IPC events.
+- Extended GUI alarm visual warnings on the RuntimePage when template match states are encountered.
+- Created `tests/test_visual_detector.py` validating matching coords accuracy, threshold scaling, and fail conditions.
+- Verified all 55 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+

@@ -356,6 +356,8 @@ class RuntimePage(Page):
             self.status_lbl.setText("Status: 💀 CHARACTER DEATH DETECTED")
         elif alarm_type == "disconnect":
             self.status_lbl.setText("Status: ⚡ CLIENT DISCONNECTED")
+        elif alarm_type == "template_match":
+            self.status_lbl.setText("Status: 👁️ VISUAL STATE DETECTED")
 
     def _cleanup_launcher(self) -> None:
         """Clean up the worker thread and terminate launcher process."""

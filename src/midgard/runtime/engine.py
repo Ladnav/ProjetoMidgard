@@ -16,6 +16,7 @@ from midgard.runtime.input import DummyInputAdapter, Win32InputAdapter
 from midgard.runtime.navigation import NavigationModule
 from midgard.runtime.protocol import recv_message, send_message
 from midgard.vision.capture import WindowCaptureService
+from midgard.vision.detector import TemplateDetector
 
 
 class RuntimeEngine:
@@ -44,6 +45,8 @@ class RuntimeEngine:
         self.navigation_module: NavigationModule | None = None
         self.consumables_module: ConsumablesModule | None = None
         self.evasion_module: EvasionModule | None = None
+        self.template_detector = TemplateDetector()
+        self.detector_rules: dict[str, str] = {}
         self.capture_failures = 0
 
         # Stats
@@ -86,6 +89,9 @@ class RuntimeEngine:
 
                 # Initialize navigation rules dict
                 nav_rules = profile.rules.get("navigation", {})
+
+                # Initialize detector rules dict
+                self.detector_rules = profile.rules.get("detector", {})
 
                 # Find and initialize WindowCaptureService if window_title is set
                 try:
@@ -237,6 +243,49 @@ class RuntimeEngine:
                             else:
                                 hp_pct = 92
                     except IndexError:
+                        pass
+
+                # Check for configured visual search templates
+                # Format: detector.template_path = "/path/to/template.png"
+                # If template_path is set, run search check
+                template_path_str = self.detector_rules.get("detector.template_path")
+                if template_path_str:
+                    try:
+                        th = float(self.detector_rules.get("detector.threshold", "0.8"))
+                        match_coord = self.template_detector.find_template(
+                            image, Path(template_path_str), th
+                        )
+                        if match_coord:
+                            send_message(
+                                self._sock,
+                                {
+                                    "type": "log",
+                                    "message": (
+                                        f"Visual template match found at coordinates: {match_coord}"
+                                    ),
+                                    "level": "INFO",
+                                },
+                            )
+                            # If configured to alarm on template detection
+                            alarm_on = (
+                                self.detector_rules.get("detector.alarm_on_match", "false").lower()
+                                == "true"
+                            )
+                            if alarm_on:
+                                try:
+                                    send_message(
+                                        self._sock,
+                                        {
+                                            "type": "alarm",
+                                            "alarm_type": "template_match",
+                                            "message": (
+                                                f"Target visual state detected: {template_path_str}"
+                                            ),
+                                        },
+                                    )
+                                except OSError:
+                                    pass
+                    except Exception:
                         pass
 
                 # Evaluate modules based on priority:
