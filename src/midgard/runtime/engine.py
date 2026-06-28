@@ -231,7 +231,15 @@ class RuntimeEngine:
         # Run GDI Screen Capture and Modules
         if self.capture_service:
             try:
-                image = self.capture_service.capture()
+                # Query settings database for anti-cheat desktop capture fallback toggle
+                fallback_enabled = False
+                if self.database_path:
+                    from midgard.settings import SettingsStore
+                    settings = SettingsStore(self.database_path)
+                    fallback_enabled = settings.get("evasion.desktop_fallback", "false").lower() == "true"
+                    settings.close()
+
+                image = self.capture_service.capture(desktop_fallback=fallback_enabled)
                 self.capture_failures = 0
 
                 # 1. Calculate dynamic HP status percentage first so evasion has real data
@@ -304,29 +312,32 @@ class RuntimeEngine:
                 triggered_action = False
 
                 # 1. Anomaly Security detection (Highest Priority)
-                if hasattr(self, "anomaly_module") and self.anomaly_module:
-                    anomaly_log = self.anomaly_module.evaluate(image)
-                    if anomaly_log:
-                        triggered_action = True
-                        send_message(
-                            self._sock,
-                            {
-                                "type": "log",
-                                "message": anomaly_log,
-                                "level": "CRITICAL",
-                            },
-                        )
-                        # Fire visual/audio alarm event
-                        send_message(
-                            self._sock,
-                            {
-                                "type": "alarm",
-                                "alarm_type": "anomaly",
-                                "message": anomaly_log,
-                            },
-                        )
-                        # Pause loop execution for security
-                        self.active = False
+                try:
+                    if hasattr(self, "anomaly_module") and self.anomaly_module and getattr(self.anomaly_module, "enabled", False):
+                        anomaly_log = self.anomaly_module.evaluate(image)
+                        if anomaly_log:
+                            triggered_action = True
+                            send_message(
+                                self._sock,
+                                {
+                                    "type": "log",
+                                    "message": anomaly_log,
+                                    "level": "CRITICAL",
+                                },
+                            )
+                            # Fire visual/audio alarm event
+                            send_message(
+                                self._sock,
+                                {
+                                    "type": "alarm",
+                                    "alarm_type": "anomaly",
+                                    "message": anomaly_log,
+                                },
+                            )
+                            # Pause loop execution for security
+                            self.active = False
+                except Exception:
+                    pass
 
                 if not triggered_action and self.heal_module:
                     heal_log = self.heal_module.evaluate(image)

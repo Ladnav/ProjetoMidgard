@@ -62,11 +62,44 @@ class NavigationModule:
 
         # Dynamic pathfinding option
         grid_map = self.rules.get("navigation.grid_map")
-        # If grid_map rule is set, we run A* pathfinding.
-        # Example format for grid_map: "10x10;0,0,0,0,0,0,0,0,0,0;..." or we parse a list of lists.
-        # For simulation & testing, we accept navigation.grid_map representation
+        
+        # Load map from image file path or JSON file path if specified (TASK-026)
+        map_filepath = self.rules.get("navigation.map_file", "")
         path = None
-        if grid_map:
+        if map_filepath:
+            from pathlib import Path
+            import json
+            p = Path(map_filepath)
+            if p.exists():
+                if p.suffix.lower() in (".png", ".bmp"):
+                    try:
+                        # Black pixels (0,0,0) are obstacles, non-black (255,255,255) are walkable
+                        map_img = Image.open(p).convert("RGB")
+                        w, h = map_img.size
+                        grid = []
+                        for r in range(h):
+                            row = []
+                            for c in range(w):
+                                rgb = map_img.getpixel((c, r))
+                                # std: 1 = walkable, 0 = obstacle
+                                row.append(0 if rgb == (0, 0, 0) else 1)
+                            grid.append(row)
+                        from midgard.runtime.pathfinding import AStarNavigator
+                        navigator = AStarNavigator(grid)
+                        path = navigator.find_path((0, 0), (x, y))
+                    except Exception:
+                        pass
+                elif p.suffix.lower() == ".json":
+                    try:
+                        with open(p, "r") as f:
+                            grid = json.load(f)
+                        from midgard.runtime.pathfinding import AStarNavigator
+                        navigator = AStarNavigator(grid)
+                        path = navigator.find_path((0, 0), (x, y))
+                    except Exception:
+                        pass
+
+        if not path and grid_map:
             from midgard.runtime.pathfinding import AStarNavigator
 
             try:
@@ -79,9 +112,7 @@ class NavigationModule:
                         grid.append(list(map(int, row_str.strip().split(","))))
 
                 # Assume start at last known click or 0,0 for routing simulation
-                # We target (x, y) as grid coordinate
                 navigator = AStarNavigator(grid)
-                # Map coordinate to grid node (e.g. integer division/mapping if larger)
                 start_node = (0, 0)
                 end_node = (x, y)
                 path = navigator.find_path(start_node, end_node)

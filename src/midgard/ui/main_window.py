@@ -103,7 +103,7 @@ class MainWindow(QMainWindow):
             "Profiles": ProfilesPage(self.profile_store),
             "Runtime": RuntimePage(self.profile_store),
             "Statistics": StatisticsPage(self.profile_store),
-            "Settings": SettingsPage(initial_theme),
+            "Settings": SettingsPage(initial_theme, self._settings),
             "Logs": LogsPage(log_path),
             "About": AboutPage(version),
         }

@@ -90,7 +90,7 @@ class SettingsPage(Page):
 
     theme_selected = Signal(str)
 
-    def __init__(self, initial_theme: Theme) -> None:
+    def __init__(self, initial_theme: Theme, settings_store = None) -> None:
         super().__init__(
             "Settings",
             "Manage local Midgard Studio preferences.",
@@ -98,6 +98,7 @@ class SettingsPage(Page):
             "Choose the visual theme. The selection is stored locally in SQLite.",
             card_eyebrow="PREFERENCES",
         )
+        self.settings_store = settings_store
 
         control_row = QHBoxLayout()
         control_row.setContentsMargins(0, 10, 0, 0)
@@ -115,6 +116,24 @@ class SettingsPage(Page):
         control_row.addStretch(1)
         control_row.addWidget(self.theme_combo)
         self.card_layout.addLayout(control_row)
+
+        # GameGuard Evasion configurations (TASK-026)
+        self.card_layout.addSpacing(15)
+        self.fallback_chk = QCheckBox("GameGuard Evasion: Desktop Capture Fallback")
+        self.fallback_chk.setToolTip(
+            "Captures target bounds from overall desktop display coordinate crops "
+            "to avoid triggering protected GDI process window hooks."
+        )
+        if self.settings_store:
+            saved = self.settings_store.get("evasion.desktop_fallback", "false").lower() == "true"
+            self.fallback_chk.setChecked(saved)
+        self.fallback_chk.stateChanged.connect(self._save_evasion_setting)
+        self.card_layout.addWidget(self.fallback_chk)
+
+    def _save_evasion_setting(self, state: int) -> None:
+        if self.settings_store:
+            enabled_str = str(self.fallback_chk.isChecked()).lower()
+            self.settings_store.set("evasion.desktop_fallback", enabled_str)
 
     def set_theme(self, theme: Theme) -> None:
         """Synchronize the selector without emitting a user change."""
@@ -1115,6 +1134,7 @@ class ProfilesPage(Page):
         nav = rules.get("navigation", {})
         self.nav_enabled.setChecked(nav.get("navigation.enabled", "false").lower() == "true")
         self.nav_waypoints_text.setPlainText(nav.get("navigation.waypoints", ""))
+        self.nav_map_file_str = nav.get("navigation.map_file", "")
 
         # Load Security rules (TASK-025)
         sec = rules.get("security", {})
@@ -1299,6 +1319,13 @@ class ProfilesPage(Page):
                 "navigation",
                 "navigation.waypoints",
                 self.nav_waypoints_text.toPlainText().strip(),
+            )
+            # Directly persist navigation.map_file string setting (TASK-026)
+            self.profile_store.set_rule(
+                profile_id,
+                "navigation",
+                "navigation.map_file",
+                getattr(self, "nav_map_file_str", "")
             )
 
             # Save Security rules (TASK-025)

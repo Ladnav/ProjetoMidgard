@@ -199,6 +199,19 @@ not available at the time.
 - Created `tests/test_combat_opencv.py` verifying template matching and hover HP bar scanning workflows.
 - Succeeded verification checks with all 66 tests passing successfully under pytest.
 
+## 2026-06-28 — TASK-025 Visual Anomaly Detection (Anti-Detecção / Segurança)
+
+- Implemented `AnomalyModule` in `src/midgard/runtime/anomaly.py` verifying captchas and GM visual prompts.
+- Integrated highest priority tick check in `RuntimeEngine` loop to pause client on alarms or trigger ALT+F4 client force quits.
+- Created `tests/test_anomaly.py` and updated GUI test suite rules.
+
+## 2026-06-28 — TASK-026 Mesh-Based Navigation & GameGuard Evasion
+
+- Implemented desktop monitor screen capture crops fallback option in `WindowCaptureService` (`src/midgard/vision/capture.py`) to bypass direct HWND anti-cheat process locks.
+- Integrated SQLite database settings schema configurations load and save hooks inside `SettingsPage` (`src/midgard/ui/pages.py`).
+- Added PNG/BMP visual image maps and JSON walkable grid matrices loader parser supporting A* pathfinding solvers inside `NavigationModule` (`src/midgard/runtime/navigation.py`).
+- Created `tests/test_mesh_navigation.py` verifying visual A* path solvers and completed full verification check with all 68 tests passing successfully.
+
 
 
 

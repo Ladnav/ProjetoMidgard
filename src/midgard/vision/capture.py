@@ -154,13 +154,18 @@ class WindowCaptureService:
             raise ValueError(f"No window found matching title: '{title_substring}'")
         return cls(hwnd)
 
-    def capture(self) -> Image.Image:
+    def capture(self, desktop_fallback: bool = False) -> Image.Image:
         """Capture the client area of the target window.
 
-        Returns a PIL Image in RGBA format.
+        If desktop_fallback is True, captures the entire desktop screen using the desktop's DC 
+        and crops the game window's bounding box out of it. This avoids direct calls to protected 
+        window hooks that trigger anti-cheat locks like GameGuard.
         """
         if not ctypes.windll.user32.IsWindow(self.hwnd):
             raise RuntimeError(f"Target HWND is no longer valid: {self.hwnd}")
+
+        if desktop_fallback:
+            return self._capture_via_desktop()
 
         # 1. Retrieve the client area rect
         rect = RECT()
@@ -191,7 +196,6 @@ class WindowCaptureService:
             raise RuntimeError("GDI BitBlt transfer failed.")
 
         # 4. Extract bits from the bitmap structure
-        # Standard display devices are 32-bit ARGB/BGRA (4 bytes per pixel)
         bitmap_size = width * height * 4
         buffer = ctypes.create_string_buffer(bitmap_size)
         bytes_copied = ctypes.windll.gdi32.GetBitmapBits(hbitmap, bitmap_size, buffer)
@@ -207,10 +211,74 @@ class WindowCaptureService:
         # 5. Pack bits into a Pillow RGBA Image using BGRA raw decoder
         image = Image.frombuffer("RGBA", (width, height), buffer, "raw", "BGRA", 0, 1)
 
-        # 6. GDI Teardown & cleanup (to prevent critical OS memory leaks)
+        # 6. GDI Teardown & cleanup
         ctypes.windll.gdi32.SelectObject(hdc_mem, old_bitmap)
         ctypes.windll.gdi32.DeleteObject(hbitmap)
         ctypes.windll.gdi32.DeleteDC(hdc_mem)
         ctypes.windll.user32.ReleaseDC(self.hwnd, hdc_window)
+
+        return image
+
+    def _capture_via_desktop(self) -> Image.Image:
+        """Capture by querying the Desktop window coordinates and cropping target bounds."""
+        # Find absolute window rect
+        rect = RECT()
+        ctypes.windll.user32.GetWindowRect(self.hwnd, ctypes.pointer(rect))
+        
+        # Calculate Client Rect coordinates inside absolute window coords
+        client_rect = RECT()
+        ctypes.windll.user32.GetClientRect(self.hwnd, ctypes.pointer(client_rect))
+        
+        # Map client top-left (0,0) to screen absolute coordinates
+        point = ctypes.wintypes.POINT()
+        point.x = 0
+        point.y = 0
+        ctypes.windll.user32.ClientToScreen(self.hwnd, ctypes.pointer(point))
+        
+        start_x = point.x
+        start_y = point.y
+        width = client_rect.right - client_rect.left
+        height = client_rect.bottom - client_rect.top
+
+        if width <= 0 or height <= 0:
+            raise RuntimeError(f"Desktop fallback crop coordinates are invalid: {width}x{height}")
+
+        # Capture Desktop screen
+        hwnd_desktop = ctypes.windll.user32.GetDesktopWindow()
+        hdc_desktop = ctypes.windll.user32.GetDC(hwnd_desktop)
+        hdc_mem = ctypes.windll.gdi32.CreateCompatibleDC(hdc_desktop)
+        hbitmap = ctypes.windll.gdi32.CreateCompatibleBitmap(hdc_desktop, width, height)
+        old_bitmap = ctypes.windll.gdi32.SelectObject(hdc_mem, hbitmap)
+
+        SRCCOPY = 0x00CC0020
+        # BitBlt from start_x, start_y on Desktop DC
+        success = ctypes.windll.gdi32.BitBlt(
+            hdc_mem, 0, 0, width, height, hdc_desktop, start_x, start_y, SRCCOPY
+        )
+        if not success:
+            ctypes.windll.gdi32.SelectObject(hdc_mem, old_bitmap)
+            ctypes.windll.gdi32.DeleteObject(hbitmap)
+            ctypes.windll.gdi32.DeleteDC(hdc_mem)
+            ctypes.windll.user32.ReleaseDC(hwnd_desktop, hdc_desktop)
+            raise RuntimeError("Desktop GDI BitBlt crop failed.")
+
+        bitmap_size = width * height * 4
+        buffer = ctypes.create_string_buffer(bitmap_size)
+        bytes_copied = ctypes.windll.gdi32.GetBitmapBits(hbitmap, bitmap_size, buffer)
+
+        if bytes_copied <= 0:
+            ctypes.windll.gdi32.SelectObject(hdc_mem, old_bitmap)
+            ctypes.windll.gdi32.DeleteObject(hbitmap)
+            ctypes.windll.gdi32.DeleteDC(hdc_mem)
+            ctypes.windll.user32.ReleaseDC(hwnd_desktop, hdc_desktop)
+            raise RuntimeError("Failed to read bits from Desktop GDI bitmap.")
+
+        image = Image.frombuffer("RGBA", (width, height), buffer, "raw", "BGRA", 0, 1)
+
+        # Cleanup
+        ctypes.windll.gdi32.SelectObject(hdc_mem, old_bitmap)
+        ctypes.windll.gdi32.DeleteObject(hbitmap)
+        ctypes.windll.gdi32.DeleteDC(hdc_mem)
+        ctypes.windll.user32.ReleaseDC(hwnd_desktop, hdc_desktop)
 
         return image
