@@ -13,9 +13,12 @@ from midgard.runtime.protocol import recv_message, send_message
 class RuntimeLauncher:
     """Manages the lifecycle of a runtime subprocess and communicates via IPC."""
 
-    def __init__(self, profile_id: int, database_path: Path) -> None:
+    def __init__(
+        self, profile_id: int, database_path: Path, *, use_dummy_input: bool = False
+    ) -> None:
         self.profile_id = profile_id
         self.database_path = database_path
+        self.use_dummy_input = use_dummy_input
         self.port: int = 0
 
         self._server_sock: socket.socket | None = None
@@ -42,6 +45,8 @@ class RuntimeLauncher:
             "--port",
             str(self.port),
         ]
+        if self.use_dummy_input:
+            cmd.append("--dummy-input")
 
         # Ensure PYTHONPATH includes the src/ directory so the child process can import midgard
         src_dir = Path(__file__).resolve().parents[2]

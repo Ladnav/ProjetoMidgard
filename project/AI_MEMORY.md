@@ -15,6 +15,8 @@ does not override, explicit user instructions or approved task decisions.
 - Each character has an independent profile stored in the SQLite database (`profiles`, `profile_rules`, `profile_stats` tables).
 - The bot execution engine uses a multi-process model: the Studio UI launches and manages independent `RuntimeEngine` subprocesses via `RuntimeLauncher`.
 - Screen capture is handled by a Windows GDI BitBlt pipeline (`WindowCaptureService` via ctypes) returning Pillow Image buffers.
+- Keyboard input simulation is abstracted via `BaseInputAdapter`, utilizing native Windows `SendInput` hardware scan codes (`Win32InputAdapter`) to bypass hooks.
+- Gameplay automation is started with a pixel-based `HealModule` checking health state coordinates and executing healing triggers with human-like delays.
 - Documentation is part of the product and must track implementation.
 - The engineering workflow uses uv (or fallback pip), Ruff, pytest, Semantic Versioning, and GitHub Actions.
 - Midgard Studio 0.2.0 has seven page shells, light/dark themes, SQLite-backed preferences, ProfileStore backend, and basic application logging.
@@ -35,9 +37,7 @@ does not override, explicit user instructions or approved task decisions.
 
 ## Current scope boundary
 
-The graphical application foundation is authorized. Game automation, gameplay runtime behavior,
-computer vision, OCR, input automation, rule engines, bot logic, plugins, and AI
-features remain prohibited unless a later task explicitly approves them. (Window capture is approved as a library foundation.)
+The graphical application foundation is authorized. Game automation (beyond the basic Heal trigger), map navigation pathfinding, combat target selection, computer vision object detection (like YOLO), OCR text reading, plugin loaders, and AI features remain prohibited unless a later task explicitly approves them. (Window capture, keyboard emulation, and pixel-based Heal monitoring are approved as library/engine foundation.)
 
 ## Open decisions
 

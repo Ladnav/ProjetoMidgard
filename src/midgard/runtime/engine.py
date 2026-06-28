@@ -7,13 +7,24 @@ import sys
 import time
 from pathlib import Path
 
+from midgard.profile import ProfileStore
+from midgard.runtime.heal import HealModule
+from midgard.runtime.input import DummyInputAdapter, Win32InputAdapter
 from midgard.runtime.protocol import recv_message, send_message
+from midgard.vision.capture import WindowCaptureService
 
 
 class RuntimeEngine:
     """Core runtime engine executing the main loop in the elevated/isolated process."""
 
-    def __init__(self, profile_id: int, database_path: Path, studio_port: int) -> None:
+    def __init__(
+        self,
+        profile_id: int,
+        database_path: Path,
+        studio_port: int,
+        *,
+        use_dummy_input: bool = False,
+    ) -> None:
         self.profile_id = profile_id
         self.database_path = database_path
         self.studio_port = studio_port
@@ -21,12 +32,17 @@ class RuntimeEngine:
         self.active = False
         self._sock: socket.socket | None = None
 
-        # Simulated stats for verification
+        # Input and capture abstractions
+        self.input_adapter = DummyInputAdapter() if use_dummy_input else Win32InputAdapter()
+        self.capture_service: WindowCaptureService | None = None
+        self.heal_module: HealModule | None = None
+
+        # Stats
         self.xp_gained = 0
         self.loot_collected = 0
 
     def run(self) -> None:
-        """Connect to Studio, register, and enter the main loop."""
+        """Connect to Studio, register, load profile, and enter the main loop."""
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self._sock.connect(("127.0.0.1", self.studio_port))
@@ -36,6 +52,63 @@ class RuntimeEngine:
 
         # Send registration packet
         send_message(self._sock, {"type": "registration", "profile_id": self.profile_id})
+
+        # Load profile configuration rules from SQLite database
+        try:
+            store = ProfileStore(self.database_path)
+            profile = store.get_profile(self.profile_id)
+            store.close()
+
+            if profile:
+                # Initialize heal rules dict
+                heal_rules = profile.rules.get("healing", {})
+                self.heal_module = HealModule(heal_rules, self.input_adapter)
+
+                # Find and initialize WindowCaptureService if window_title is set
+                try:
+                    self.capture_service = WindowCaptureService.from_title(profile.window_title)
+                    window_log = (
+                        f"Connected to game window '{profile.window_title}' "
+                        f"(HWND: {self.capture_service.hwnd})"
+                    )
+                    send_message(
+                        self._sock,
+                        {
+                            "type": "log",
+                            "message": window_log,
+                            "level": "INFO",
+                        },
+                    )
+                except ValueError as e:
+                    send_message(
+                        self._sock,
+                        {
+                            "type": "log",
+                            "message": f"Window discovery warning: {e}",
+                            "level": "WARNING",
+                        },
+                    )
+            else:
+                send_message(
+                    self._sock,
+                    {
+                        "type": "log",
+                        "message": f"Profile ID {self.profile_id} not found in database",
+                        "level": "ERROR",
+                    },
+                )
+        except Exception as e:
+            try:
+                send_message(
+                    self._sock,
+                    {
+                        "type": "log",
+                        "message": f"Failed to initialize profile database: {e}",
+                        "level": "ERROR",
+                    },
+                )
+            except OSError:
+                pass
 
         try:
             while self.running:
@@ -104,9 +177,38 @@ class RuntimeEngine:
                 )
 
     def _tick(self) -> None:
-        """Simulated gameplay tick."""
+        """Execute active automation modules."""
+        # Simulate base metrics
         self.xp_gained += 15
         self.loot_collected += 1
+
+        # Run GDI Screen Capture and Heal Module
+        if self.capture_service and self.heal_module:
+            try:
+                image = self.capture_service.capture()
+                log_msg = self.heal_module.evaluate(image)
+                if log_msg:
+                    send_message(
+                        self._sock,
+                        {
+                            "type": "log",
+                            "message": log_msg,
+                            "level": "INFO",
+                        },
+                    )
+            except Exception as e:
+                # Log any runtime capture / evaluation warnings
+                try:
+                    send_message(
+                        self._sock,
+                        {
+                            "type": "log",
+                            "message": f"Heal evaluation error: {e}",
+                            "level": "WARNING",
+                        },
+                    )
+                except OSError:
+                    pass
 
         status_msg = {
             "type": "status",
@@ -128,6 +230,7 @@ def main() -> int:
     parser.add_argument("--profile", type=int, required=True, help="Profile ID")
     parser.add_argument("--db", type=str, required=True, help="Database path")
     parser.add_argument("--port", type=int, required=True, help="Studio TCP port")
+    parser.add_argument("--dummy-input", action="store_true", help="Use dummy memory input adapter")
 
     args = parser.parse_args()
 
@@ -135,6 +238,7 @@ def main() -> int:
         profile_id=args.profile,
         database_path=Path(args.db),
         studio_port=args.port,
+        use_dummy_input=args.dummy_input,
     )
     engine.run()
     return 0

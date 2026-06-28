@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-005 — Midgard Vision Foundation implementation.
+TASK-006 — Midgard Automation MVP (Heal & Input) implementation.
 
 ## Present
 
@@ -20,21 +20,23 @@ TASK-005 — Midgard Vision Foundation implementation.
 - TCP-based IPC loopback protocol with JSON event framing and command control
 - Windows GDI screen capture service (`WindowCaptureService`) using ctypes to capture target window client areas
 - DPI-awareness configuration and 64-bit compatible HWND window discovery by title substring
+- Win32 keyboard emulation service (`Win32InputAdapter` via `SendInput` hardware scan codes) and in-memory test adapter (`DummyInputAdapter`)
+- Autonomous `HealModule` analyzing captured screen pixels to trigger recovery actions respecting random human-like delays
+- Integration of GDI screen capture, input services, and database rules loading into the active `RuntimeEngine` loop
 - Console and rotating-file application logging
 - Application version 0.2.0 displayed on the About page
 - uv dependency declaration and lock-file workflow
 - Ruff formatter and linter configuration
-- pytest coverage for package metadata, settings persistence, navigation, themes, logging, character profiles, runtime/IPC, and GDI screen capture
-- GitHub Actions quality workflow for Ubuntu Latest (selectively skipping Windows GDI capture tests)
+- pytest coverage for package metadata, settings, character profiles, runtime/IPC, GDI capture, Win32/Dummy inputs, and Heal triggers
+- GitHub Actions quality workflow for Ubuntu Latest (selectively skipping Windows GDI capture and Win32 input tests)
 - Bootstrap, contributor, licensing, changelog, and project-memory documentation
 
 ## Not present
 
-- Gameplay or automation runtime
-- Input automation
-- Automation or gameplay behavior
+- Gameplay or automation runtime beyond basic pixel reading
+- Combat or navigation behavior (target selection, pathfinding)
 - Computer vision or OCR
-- Rule engine or bot logic
+- Rule engine or bot logic beyond basic heal thresholds
 - Plugin system
 - AI features
 - Distribution or release artifacts
@@ -54,14 +56,15 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 - Ruff formatting check passed
 - Ruff lint check passed
-- pytest passed with 22 tests
+- pytest passed with 26 tests
 - SQLite theme persistence passed across application starts
 - SQLite character profiles CRUD, rules, cascading deletion, and stats tracking passed
 - Runtime launcher, TCP protocol packing, engine cycle commands, and graceful subprocess termination passed
 - Windows GDI screen capture, DPI-awareness, 64-bit title discovery, and mock GDI fallback tests passed
+- Win32 input code packing, Heal Module pixel color deviation triggers, and random cooldown tests passed
 - Native Windows launch and dark/light theme screenshots were visually inspected
 - The uv lock resolves the full PySide6 dependency for CI installation
 
 ## Delivery state
 
-TASK-005 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-006 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

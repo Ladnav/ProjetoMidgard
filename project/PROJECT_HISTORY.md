@@ -65,3 +65,12 @@ not available at the time.
 - Fixed 64-bit calling convention issues in `EnumWindows` using `ctypes.c_void_p` for HWND pointers and fixed callback garbage collection bugs.
 - Created `tests/test_vision.py` containing unit tests with complete mock GDI pipelines to allow running GDI tests inside headless Sessions (Session 0) and platform checks to safely skip GDI capture on non-Windows CI runners.
 - Verified all 22 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+## 2026-06-28 — TASK-006 Midgard Automation MVP (Heal & Input)
+
+- Designed and implemented a keyboard input emulation layer (`BaseInputAdapter`, `Win32InputAdapter` using native `SendInput` hardware scan codes, and `DummyInputAdapter` for testing) in `src/midgard/runtime/input.py`.
+- Implemented `HealModule` in `src/midgard/runtime/heal.py` that monitors specific pixel coordinates in the game client client area and triggers healing hotkeys (using the input adapter) when colors deviate past a configured tolerance threshold, applying random human-like delays.
+- Integrated the GDI capture, input, and healing evaluations into the active `RuntimeEngine` loop cycle, loading rules directly from the profile's SQLite database during initialization.
+- Added comprehensive unit tests in `tests/test_automation.py` covering key event histories, disabled states, color distance calculation triggers, and cooldown windows.
+- Updated `tests/test_runtime.py` to launch subprocesses with `--dummy-input` to bypass GDI/Win32 hooks warnings on headless CI test environments.
+- Verified all 26 tests passing under Python 3.14.5 and Ruff check formatting validation.

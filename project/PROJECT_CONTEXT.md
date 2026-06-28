@@ -32,13 +32,11 @@ only: none are designed or implemented in the current foundation.
 - Runtime lifecycle and process model: multi-process isolation (each profile runs in its own subprocess `RuntimeEngine`)
 - Event communication mechanism: TCP socket loopback (`127.0.0.1`) with length-prefixed JSON serialization to cross privilege boundaries safely
 - Screen capture technology: Windows GDI BitBlt via ctypes (returning PIL Image buffers)
+- Keyboard input simulation: native Windows `SendInput` API using hardware scan codes (with abstract adapter interface)
 
 ## Current scope boundary
 
-The current application is a graphical shell only. It specifically excludes game automation,
-gameplay runtime behavior, computer vision, OCR, input automation, rule engines,
-bot logic, plugins, and AI features. The page named Runtime is an empty navigation destination and
-does not authorize or implement runtime logic. (Note: Window screen capture is implemented as a library foundation, but gameplay loop automation remains excluded.)
+The current application is a graphical shell only. It specifically excludes game automation (beyond the basic Heal trigger), combat target selection, map navigation pathfinding, computer vision object detection (like YOLO), OCR text reading, plugin loaders, and AI features. The page named Runtime is an empty navigation destination and does not authorize or implement runtime logic. (Note: Window capture, Win32 keyboard emulation, and pixel-based Heal monitoring are implemented in the library/engine foundation, but active gameplay loop automation remains excluded.)
 
 ## Repository principles
 

@@ -30,7 +30,14 @@ def test_launcher_lifecycle_and_communication(tmp_path: Path) -> None:
     """The launcher spawns the engine, completes registration, and processes commands."""
     db_path = tmp_path / "midgard-test-runtime.db"
 
-    launcher = RuntimeLauncher(profile_id=42, database_path=db_path)
+    # Seed profile in the database to satisfy the engine initialization check
+    from midgard.profile import ProfileStore
+
+    store = ProfileStore(db_path)
+    profile_id = store.create_profile("TestChar", "Novice", "Ragnarok")
+    store.close()
+
+    launcher = RuntimeLauncher(profile_id=profile_id, database_path=db_path, use_dummy_input=True)
     try:
         launcher.start()
         assert launcher.is_alive()
@@ -40,7 +47,14 @@ def test_launcher_lifecycle_and_communication(tmp_path: Path) -> None:
         reg_msg = launcher.receive_event(timeout=1.5)
         assert reg_msg is not None
         assert reg_msg["type"] == "registration"
-        assert reg_msg["profile_id"] == 42
+        assert reg_msg["profile_id"] == profile_id
+
+        # Drain any initial startup logs
+        while True:
+            startup_log = launcher.receive_event(timeout=0.1)
+            if startup_log is None:
+                break
+            assert startup_log["type"] == "log"
 
         # 2. Send START command
         launcher.send_command("start")
@@ -55,7 +69,7 @@ def test_launcher_lifecycle_and_communication(tmp_path: Path) -> None:
         status_msg = launcher.receive_event(timeout=1.0)
         assert status_msg is not None
         assert status_msg["type"] == "status"
-        assert status_msg["profile_id"] == 42
+        assert status_msg["profile_id"] == profile_id
         assert status_msg["hp_pct"] == 92
         assert status_msg["xp_gained"] == 15
 
