@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-017 — Standalone Executable Packaging.
+TASK-020 — Window Attachment and Binding by Process ID (PID).
 
 ## Present
 
@@ -30,6 +30,10 @@ TASK-017 — Standalone Executable Packaging.
 - Interactive `RuntimePage` allowing profile selection, start/pause/stop runtime triggers, background event collection via a non-blocking `RuntimeWorker` thread, live terminal logging, and operational statistics metrics (HP, XP, Loot)
 - Searchable and clearable `LogsPage` visual terminal with real-time file reading, filtering by text patterns, and severity level selections (INFO, WARNING, ERROR)
 - Active `StatisticsPage` displaying profile operational metrics (XP accumulated, loot collected, deaths, session times) directly queried from SQLite storage
+- Targeting Game Window Attachment: selector dialog that fetches active Win32 client handles (HWNDs) and process IDs (PIDs) to bypass anti-cheat hooks. Stores target as `WindowName [PID: 1234]` to lock the bot to a specific client instance while displaying character identity inside the Studio UI.
+- Single, standalone executable build compiled using PyInstaller (`dist/MidgardStudio.exe`) for portable Windows distribution
+- Searchable and clearable `LogsPage` visual terminal with real-time file reading, filtering by text patterns, and severity level selections (INFO, WARNING, ERROR)
+- Active `StatisticsPage` displaying profile operational metrics (XP accumulated, loot collected, deaths, session times) directly queried from SQLite storage
 - Single, standalone executable build compiled using PyInstaller (`dist/MidgardStudio.exe`) for portable Windows distribution
 - Visual `PickDialog` coordinate and color picker overlay displaying target window GDI captures with hover tooltips and automatic coordinate/RGB population
 - Antidetection input protections: Bezier curve smooth mouse trajectories, randomized key/click hold durations mimicking human behavior
@@ -42,7 +46,7 @@ TASK-017 — Standalone Executable Packaging.
 - Application version 0.2.0 displayed on the About page
 - uv dependency declaration and lock-file workflow
 - Ruff formatter and linter configuration
-- pytest coverage for package metadata, settings, character profiles, runtime/IPC, GDI capture, Win32/Dummy inputs, Heal triggers, Combat scanning, Waypoint navigation, Consumables timers, Profiles rules GUI, Runtime GUI, Pick Dialog overlay, Antidetection/Alarm system, A* Pathfinding route solver, Evasion triggers, OpenCV Template Matching, Searchable Logs/Statistics GUI layouts, and PyInstaller builder script configurations
+- pytest coverage for package metadata, settings, character profiles, runtime/IPC, GDI capture, Win32/Dummy inputs, Heal triggers, Combat scanning, Waypoint navigation, Consumables timers, Profiles rules GUI, Runtime GUI, Pick Dialog overlay, Antidetection/Alarm system, A* Pathfinding route solver, Evasion triggers, OpenCV Template Matching, Searchable Logs/Statistics GUI layouts, PyInstaller builder script configurations, and Win32 process ID (PID) window binding methods
 - GitHub Actions quality workflow for Ubuntu Latest (selectively skipping Windows GDI capture and Win32 input/mouse tests)
 - Bootstrap, contributor, licensing, changelog, and project-memory documentation
 
@@ -69,7 +73,7 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 - Ruff formatting check passed
 - Ruff lint check passed
-- pytest passed with 58 tests
+- pytest passed with 61 tests
 - SQLite theme persistence passed across application starts
 - SQLite character profiles CRUD, rules, cascading deletion, and stats tracking passed
 - Runtime launcher, TCP protocol packing, engine cycle commands, and graceful subprocess termination passed
@@ -86,9 +90,10 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 - OpenCV image Template Matching searches and threshold matching logic tested and passed
 - Searchable diagnostics logs, text query matching, level filters, and active profile statistics page updates tested and passed
 - Executable compiler builder script (`build_executable.py`) successfully generated standalone executable binary `MidgardStudio.exe` at project root `dist/` directory
+- Win32 Process ID (PID) query functions, window handle (HWND) discovery by PID, and target selection UI list dialogs tested and passed
 - Native Windows launch and dark/light theme screenshots were visually inspected
 - The uv lock resolves the full PySide6 dependency for CI installation
 
 ## Delivery state
 
-TASK-017 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-020 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

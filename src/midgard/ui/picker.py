@@ -67,3 +67,46 @@ class PickDialog(QDialog):
         self.selected_g = g
         self.selected_b = b
         self.accept()
+
+
+class WindowListDialog(QDialog):
+    """List matching windows and allow user to select one for injection."""
+
+    def __init__(self, windows: list[tuple[int, int, str]], parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Select Target Client Window")
+        self.setMinimumSize(460, 260)
+        self.setModal(True)
+
+        self.selected_hwnd: int | None = None
+        self.selected_pid: int | None = None
+        self.selected_title: str | None = None
+
+        layout = QVBoxLayout(self)
+
+        from PySide6.QtWidgets import QListWidget, QListWidgetItem, QDialogButtonBox
+        self.list_widget = QListWidget()
+        for hwnd, pid, title in windows:
+            # Display clearly matching PID and process window name
+            item = QListWidgetItem(f"HWND: {hwnd} | PID: {pid} | Title: {title}")
+            item.setData(Qt.ItemDataRole.UserRole, (hwnd, pid, title))
+            self.list_widget.addItem(item)
+
+        layout.addWidget(self.list_widget)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept_selection)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _accept_selection(self) -> None:
+        current_item = self.list_widget.currentItem()
+        if current_item:
+            data = current_item.data(Qt.ItemDataRole.UserRole)
+            if data:
+                self.selected_hwnd, self.selected_pid, self.selected_title = data
+                self.accept()
+                return
+        self.reject()

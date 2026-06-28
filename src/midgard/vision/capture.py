@@ -58,6 +58,74 @@ def find_window_by_title(title_substring: str) -> int | None:
     return found_hwnds[0] if found_hwnds else None
 
 
+def list_windows_by_title(title_substring: str) -> list[tuple[int, str]]:
+    """List all open window handles (HWNDs) and titles matching a substring search."""
+    matched = []
+    wnd_enum_proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+    def callback(hwnd: int, extra: int) -> bool:
+        if ctypes.windll.user32.IsWindowVisible(hwnd):
+            length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+            if length > 0:
+                buffer = ctypes.create_unicode_buffer(length + 1)
+                ctypes.windll.user32.GetWindowTextW(hwnd, buffer, length + 1)
+                if title_substring.lower() in buffer.value.lower():
+                    matched.append((hwnd, buffer.value))
+        return True
+
+    enum_proc = wnd_enum_proc(callback)
+    ctypes.windll.user32.EnumWindows(enum_proc, 0)
+    return matched
+
+
+def list_windows_by_title_with_pid(title_substring: str) -> list[tuple[int, int, str]]:
+    """List matching window handles, process IDs, and titles."""
+    matched = []
+    wnd_enum_proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+    def callback(hwnd: int, extra: int) -> bool:
+        if ctypes.windll.user32.IsWindowVisible(hwnd):
+            length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+            if length > 0:
+                buffer = ctypes.create_unicode_buffer(length + 1)
+                ctypes.windll.user32.GetWindowTextW(hwnd, buffer, length + 1)
+                if title_substring.lower() in buffer.value.lower():
+                    pid = ctypes.c_ulong()
+                    ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                    matched.append((hwnd, pid.value, buffer.value))
+        return True
+
+    enum_proc = wnd_enum_proc(callback)
+    ctypes.windll.user32.EnumWindows(enum_proc, 0)
+    return matched
+
+
+def find_hwnd_by_pid(target_pid: int) -> int | None:
+    """Find the top-level window handle (HWND) belonging to a specific Process ID (PID)."""
+    found_hwnds = []
+    wnd_enum_proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+    def callback(hwnd: int, extra: int) -> bool:
+        if ctypes.windll.user32.IsWindowVisible(hwnd):
+            pid = ctypes.c_ulong()
+            ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value == target_pid:
+                found_hwnds.append(hwnd)
+                return False
+        return True
+
+    enum_proc = wnd_enum_proc(callback)
+    ctypes.windll.user32.EnumWindows(enum_proc, 0)
+    return found_hwnds[0] if found_hwnds else None
+
+
+def rename_window(hwnd: int, new_title: str) -> bool:
+    """Set the window text of a specific window by its HWND handle."""
+    if not ctypes.windll.user32.IsWindow(hwnd):
+        return False
+    return bool(ctypes.windll.user32.SetWindowTextW(hwnd, new_title))
+
+
 class WindowCaptureService:
     """Captures specific window client areas via Windows GDI APIs."""
 
@@ -70,6 +138,17 @@ class WindowCaptureService:
     @classmethod
     def from_title(cls, title_substring: str) -> "WindowCaptureService":
         """Factory method to find target window title and instantiate the service."""
+        # Check if the title is actually a stored PID binding format "Ragnarok [PID: 1234]"
+        if " [pid: " in title_substring.lower():
+            try:
+                pid_str = title_substring.lower().split(" [pid: ")[-1].replace("]", "").strip()
+                pid = int(pid_str)
+                hwnd = find_hwnd_by_pid(pid)
+                if hwnd is not None:
+                    return cls(hwnd)
+            except Exception:
+                pass
+
         hwnd = find_window_by_title(title_substring)
         if hwnd is None:
             raise ValueError(f"No window found matching title: '{title_substring}'")

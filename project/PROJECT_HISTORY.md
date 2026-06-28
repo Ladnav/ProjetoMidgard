@@ -157,5 +157,14 @@ not available at the time.
 - Triggered automated build task successfully compiling portable standalone binary `dist/MidgardStudio.exe`.
 - Succeeded packaging verification with clean Ruff checks.
 
+## 2026-06-28 — TASK-020 PID Window Attachment and Binding
+
+- Added Process ID query helper `list_windows_by_title_with_pid` and `find_hwnd_by_pid` using Windows User32 thread DLL calls inside `src/midgard/vision/capture.py`.
+- Updated `WindowListDialog` inside `src/midgard/ui/picker.py` to display dynamic PID columns.
+- Integrated targeted window attachment using PID string formats (e.g. `Ragnarok [PID: 1244]`) inside `src/midgard/ui/pages.py` to bypass anti-cheat protectors and uniquely track clients while displaying profile configurations cleanly.
+- Implemented `tests/test_pid_binding.py` validating PID lookup and selector UI dialogs.
+- Verified all 61 tests passing under Python 3.14.5 and Ruff check formatting validation.
+
+
 
 

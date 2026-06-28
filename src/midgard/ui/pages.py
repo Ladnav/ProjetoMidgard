@@ -24,9 +24,14 @@ from PySide6.QtWidgets import (
 
 from midgard.profile import ProfileStore
 from midgard.runtime.launcher import RuntimeLauncher
-from midgard.ui.picker import PickDialog
+from midgard.ui.picker import PickDialog, WindowListDialog
 from midgard.ui.theme import Theme
-from midgard.vision.capture import WindowCaptureService
+from midgard.vision.capture import (
+    WindowCaptureService,
+    list_windows_by_title,
+    list_windows_by_title_with_pid,
+    rename_window,
+)
 
 
 class Page(QWidget):
@@ -655,8 +660,12 @@ class ProfilesPage(Page):
         window_title_lbl = QLabel("Target Game Window Title:")
         self.window_title_input = QLineEdit()
         self.window_title_input.setPlaceholderText("e.g. Ragnarok")
+        self.inject_btn = QPushButton("Inject")
+        self.inject_btn.clicked.connect(self._inject_window_rename)
+
         window_title_layout.addWidget(window_title_lbl)
         window_title_layout.addWidget(self.window_title_input, 1)
+        window_title_layout.addWidget(self.inject_btn)
         self.card_layout.addLayout(window_title_layout)
 
         # 2. Rule configuration Tab Widget
@@ -1096,3 +1105,43 @@ class ProfilesPage(Page):
                 self.combat_target_r.setValue(dialog.selected_r)
                 self.combat_target_g.setValue(dialog.selected_g)
                 self.combat_target_b.setValue(dialog.selected_b)
+
+    def _inject_window_rename(self) -> None:
+        """Find windows matching search text, and bind selected process ID (PID) to character profile."""
+        search_query = self.window_title_input.text().strip()
+        # Fallback to search query parser in case of existing "Ragnarok [PID: 123]" string
+        if " [pid: " in search_query.lower():
+            search_query = search_query.lower().split(" [pid: ")[0].strip()
+
+        if not search_query:
+            QMessageBox.warning(self, "Empty Query", "Please type a window title prefix to search.")
+            return
+
+        profile_id = self.profile_combo.currentData()
+        if profile_id is None:
+            QMessageBox.warning(self, "No Profile", "Create or select a profile first.")
+            return
+
+        profile = self.profile_store.get_profile(profile_id)
+        if not profile:
+            return
+
+        # Find matching window handles with their respective process IDs (PIDs)
+        windows = list_windows_by_title_with_pid(search_query)
+        if not windows:
+            QMessageBox.warning(self, "Not Found", f"No open windows found matching: '{search_query}'")
+            return
+
+        # Trigger selection Dialog
+        dialog = WindowListDialog(windows, self)
+        if dialog.exec() == QDialog.Accepted and dialog.selected_hwnd is not None:
+            # Bind character profile directly using the format "WindowName [PID: 1234]"
+            new_title = f"{search_query} [PID: {dialog.selected_pid}]"
+            self.window_title_input.setText(new_title)
+            # Persist directly in SQLite
+            self.profile_store.update_profile_window_title(profile_id, new_title)
+            QMessageBox.information(
+                self,
+                "Success",
+                f"Successfully injected profile '{profile.name}'!\nBound to Window PID: {dialog.selected_pid}",
+            )
