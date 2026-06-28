@@ -92,6 +92,14 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
         profiles_page.sec_panic_action.setCurrentIndex(sec_idx)
     profiles_page.sec_panic_hotkey.setText("F11")
 
+    # Edit Stash rules in UI
+    profiles_page.stash_enabled.setChecked(True)
+    profiles_page.stash_teleport_hotkey.setText("F10")
+    profiles_page.stash_kafra_x.setValue(450)
+    profiles_page.stash_kafra_y.setValue(400)
+    profiles_page.stash_weight_check_x.setValue(580)
+    profiles_page.stash_weight_check_y.setValue(75)
+
     # Save via GUI
     profiles_page._save_profile_rules()
     app.processEvents()
@@ -152,6 +160,14 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     assert security_rules.get("security.threshold") == "0.9"
     assert security_rules.get("security.panic_action") == "teleport"
     assert security_rules.get("security.panic_hotkey") == "F11"
+
+    stash_rules = db_profile.rules.get("stash", {})
+    assert stash_rules.get("stash.enabled") == "true"
+    assert stash_rules.get("stash.teleport_hotkey") == "F10"
+    assert stash_rules.get("stash.kafra_x") == "450"
+    assert stash_rules.get("stash.kafra_y") == "400"
+    assert stash_rules.get("stash.weight_check_x") == "580"
+    assert stash_rules.get("stash.weight_check_y") == "75"
 
     # Close resources
     window.close()

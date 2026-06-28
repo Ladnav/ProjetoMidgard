@@ -182,7 +182,22 @@ class Win32InputAdapter(BaseInputAdapter):
         ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
 
     def move_mouse_relative(self, hwnd: int, client_x: int, client_y: int) -> None:
-        """Move the mouse relative to the client area using a smooth Bezier path."""
+        """Move the mouse relative to the client area using a smooth Bezier path.
+        
+        Clamps client coordinates to keep them at least 25 pixels inside borders,
+        preventing Ragexe coordinate calculation crashes when hitting edges.
+        """
+        # Retrieve client area rect to clamp coordinates safely
+        rect = RECT()
+        if ctypes.windll.user32.GetClientRect(hwnd, ctypes.pointer(rect)):
+            w = rect.right - rect.left
+            h = rect.bottom - rect.top
+            margin = 25
+            if w > margin * 2:
+                client_x = max(margin, min(client_x, w - margin))
+            if h > margin * 2:
+                client_y = max(margin, min(client_y, h - margin))
+
         # Get current cursor position on the screen
         cursor = POINT()
         ctypes.windll.user32.GetCursorPos(ctypes.pointer(cursor))

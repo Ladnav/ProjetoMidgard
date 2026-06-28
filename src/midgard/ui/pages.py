@@ -696,6 +696,7 @@ class ProfilesPage(Page):
         self._init_combat_tab()
         self._init_navigation_tab()
         self._init_security_tab()
+        self._init_stash_tab()
 
         # 3. Save Button
         self.save_button = QPushButton("Save Profile Rules")
@@ -1050,6 +1051,50 @@ class ProfilesPage(Page):
 
         self.tab_widget.addTab(tab, "Security")
 
+    def _init_stash_tab(self) -> None:
+        tab = QWidget()
+        layout = QFormLayout(tab)
+
+        self.stash_enabled = QCheckBox("Enable Auto-Stash Kafra Banking")
+        self.stash_teleport_hotkey = QLineEdit()
+        self.stash_teleport_hotkey.setText("F12")
+        self.stash_teleport_hotkey.setPlaceholderText("e.g. F12")
+
+        self.stash_kafra_x = QSpinBox()
+        self.stash_kafra_x.setRange(0, 3000)
+        self.stash_kafra_x.setValue(300)
+
+        self.stash_kafra_y = QSpinBox()
+        self.stash_kafra_y.setRange(0, 3000)
+        self.stash_kafra_y.setValue(300)
+
+        self.stash_weight_check_x = QSpinBox()
+        self.stash_weight_check_x.setRange(0, 3000)
+        self.stash_weight_check_x.setValue(600)
+
+        self.stash_weight_check_y = QSpinBox()
+        self.stash_weight_check_y.setRange(0, 3000)
+        self.stash_weight_check_y.setValue(50)
+
+        layout.addRow(self.stash_enabled)
+        layout.addRow("Town Teleport Hotkey", self.stash_teleport_hotkey)
+        
+        kafra_coords = QHBoxLayout()
+        kafra_coords.addWidget(QLabel("X:"))
+        kafra_coords.addWidget(self.stash_kafra_x)
+        kafra_coords.addWidget(QLabel("Y:"))
+        kafra_coords.addWidget(self.stash_kafra_y)
+        layout.addRow("Kafra NPC Coordinates", kafra_coords)
+
+        weight_coords = QHBoxLayout()
+        weight_coords.addWidget(QLabel("X:"))
+        weight_coords.addWidget(self.stash_weight_check_x)
+        weight_coords.addWidget(QLabel("Y:"))
+        weight_coords.addWidget(self.stash_weight_check_y)
+        layout.addRow("Weight Warning Icon Pixel Coords", weight_coords)
+
+        self.tab_widget.addTab(tab, "Stash")
+
     def _load_profile_rules(self) -> None:
         """Populate rule form fields with values from database or fallbacks to defaults."""
         profile_id = self.profile_combo.currentData()
@@ -1146,6 +1191,15 @@ class ProfilesPage(Page):
         if sec_idx >= 0:
             self.sec_panic_action.setCurrentIndex(sec_idx)
         self.sec_panic_hotkey.setText(sec.get("security.panic_hotkey", "F12"))
+
+        # Load Stash rules (TASK-027)
+        stash = rules.get("stash", {})
+        self.stash_enabled.setChecked(stash.get("stash.enabled", "false").lower() == "true")
+        self.stash_teleport_hotkey.setText(stash.get("stash.teleport_hotkey", "F12"))
+        self.stash_kafra_x.setValue(int(stash.get("stash.kafra_x", "300")))
+        self.stash_kafra_y.setValue(int(stash.get("stash.kafra_y", "300")))
+        self.stash_weight_check_x.setValue(int(stash.get("stash.weight_check_x", "600")))
+        self.stash_weight_check_y.setValue(int(stash.get("stash.weight_check_y", "50")))
 
     def _save_profile_rules(self) -> None:
         """Persist rule configuration fields to the SQLite profile database."""
@@ -1343,6 +1397,26 @@ class ProfilesPage(Page):
             )
             self.profile_store.set_rule(
                 profile_id, "security", "security.panic_hotkey", self.sec_panic_hotkey.text().strip()
+            )
+
+            # Save Stash rules (TASK-027)
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.enabled", str(self.stash_enabled.isChecked()).lower()
+            )
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.teleport_hotkey", self.stash_teleport_hotkey.text().strip()
+            )
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.kafra_x", str(self.stash_kafra_x.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.kafra_y", str(self.stash_kafra_y.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.weight_check_x", str(self.stash_weight_check_x.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.weight_check_y", str(self.stash_weight_check_y.value())
             )
 
             QMessageBox.information(self, "Success", "Profile automation rules saved successfully.")

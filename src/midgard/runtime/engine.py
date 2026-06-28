@@ -94,6 +94,11 @@ class RuntimeEngine:
                 from midgard.runtime.anomaly import AnomalyModule
                 self.anomaly_module = AnomalyModule(security_rules, self.input_adapter)
 
+                # Initialize stash rules dict (TASK-027)
+                stash_rules = profile.rules.get("stash", {})
+                from midgard.runtime.stash import StashModule
+                self.stash_module = StashModule(stash_rules, self.input_adapter)
+
                 # Initialize combat rules dict
                 combat_rules = profile.rules.get("combat", {})
 
@@ -365,6 +370,24 @@ class RuntimeEngine:
                                 "level": "WARNING",
                             },
                         )
+
+                # Auto-Stash Inventory overload check (TASK-027)
+                if not triggered_action and hasattr(self, "stash_module") and self.stash_module:
+                    try:
+                        hwnd_val = self.capture_service.hwnd if self.capture_service else 0
+                        stash_log = self.stash_module.evaluate(image, hwnd_val)
+                        if stash_log:
+                            triggered_action = True
+                            send_message(
+                                self._sock,
+                                {
+                                    "type": "log",
+                                    "message": stash_log,
+                                    "level": "INFO",
+                                },
+                            )
+                    except Exception:
+                        pass
 
                 # 3. Auto-Loot check
                 if not triggered_action and hasattr(self, "loot_module") and self.loot_module:

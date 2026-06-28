@@ -212,6 +212,13 @@ not available at the time.
 - Added PNG/BMP visual image maps and JSON walkable grid matrices loader parser supporting A* pathfinding solvers inside `NavigationModule` (`src/midgard/runtime/navigation.py`).
 - Created `tests/test_mesh_navigation.py` verifying visual A* path solvers and completed full verification check with all 68 tests passing successfully.
 
+## 2026-06-28 — TASK-027 Gravity Evasion & Auto-Stash Management
+
+- Added safety coordinate boundary clamping inside `Win32InputAdapter.move_mouse_relative` (`src/midgard/runtime/input.py`) to prevent Ragexe cursor-edge crashes.
+- Created `StashModule` in `src/midgard/runtime/stash.py` monitoring weight balança indicators and clicking Kafra storage NPCs.
+- Integrated Stash tab GUI rules rules inside `ProfilesPage` and database loader/saver (`src/midgard/ui/pages.py`).
+- Created `tests/test_stash.py` verifying weight warning detection and Kafra storage dialog click flows. Completed verification check with all 69 tests passing successfully.
+
 
 
 
