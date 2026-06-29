@@ -1888,6 +1888,17 @@ class ProfilesPage(Page):
             qimg = QImage(data, pil_img.width(), pil_img.height(), QImage.Format.Format_RGBA8888)
             return QPixmap.fromImage(qimg)
         except Exception as e:
+            # Fallback final: Try connecting using the bare profile name as title (TASK-035)
+            try:
+                capture_service = WindowCaptureService.from_title(profile.name)
+                pil_img = capture_service.capture()
+                pil_img = pil_img.convert("RGBA")
+                data = bytes(pil_img.tobytes("raw", "RGBA"))
+                qimg = QImage(data, pil_img.width(), pil_img.height(), QImage.Format.Format_RGBA8888)
+                return QPixmap.fromImage(qimg)
+            except Exception:
+                pass
+
             QMessageBox.warning(
                 self,
                 "Capture Fallback",

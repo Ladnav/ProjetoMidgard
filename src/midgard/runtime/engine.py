@@ -114,7 +114,12 @@ class RuntimeEngine:
 
                 # Find and initialize WindowCaptureService if window_title is set
                 try:
-                    self.capture_service = WindowCaptureService.from_title(profile.window_title)
+                    try:
+                        self.capture_service = WindowCaptureService.from_title(profile.window_title)
+                    except ValueError:
+                        # Secondary fallback: try the profile name directly (TASK-035)
+                        self.capture_service = WindowCaptureService.from_title(profile.name)
+
                     # Pass the HWND to input adapter (TASK-002)
                     if hasattr(self.input_adapter, "set_hwnd"):
                         self.input_adapter.set_hwnd(self.capture_service.hwnd)

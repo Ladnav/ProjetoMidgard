@@ -134,16 +134,18 @@ class DigitRecognizer:
         mean_val = np.mean(arr)
         if mean_val > 127:
             # Background is light, text is dark (e.g. black text on light background)
-            # Threshold: pixels below 100 become white (foreground)
-            binarized = (arr < 100).astype(np.uint8)
+            # Threshold: pixels below 120 become white (foreground)
+            binarized = (arr < 120).astype(np.uint8)
         else:
             # Background is dark, text is light (e.g. white text on dark background)
-            # Threshold: pixels above 160 become white (foreground)
-            binarized = (arr > 160).astype(np.uint8)
+            # Threshold: pixels above 150 become white (foreground)
+            binarized = (arr > 150).astype(np.uint8)
 
-        # Clear borders that might contain frame edges
-        binarized[0, :] = 0
-        binarized[-1, :] = 0
+        # Clear a 2-pixel margin around the entire binarized image to remove window frame borders (TASK-035)
+        binarized[:2, :] = 0
+        binarized[-2:, :] = 0
+        binarized[:, :2] = 0
+        binarized[:, -2:] = 0
 
         # Segment characters vertically based on pixel projection with tolerance of 1 empty column
         col_sums = np.sum(binarized, axis=0)
