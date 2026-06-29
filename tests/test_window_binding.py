@@ -58,9 +58,9 @@ def test_gui_inject_window_rename_action(tmp_path) -> None:
         app.processEvents()
 
         # Check if PID format title is saved
-        assert page.window_title_input.text() == "Ragnarok [PID: 9999]"
+        assert page.window_title_input.text() == "Odin [PID: 9999]"
         db_profile = store.get_profile(pid)
-        assert db_profile.window_title == "Ragnarok [PID: 9999]"
+        assert db_profile.window_title == "Odin [PID: 9999]"
 
     window.close()
     store.close()

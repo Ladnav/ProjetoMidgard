@@ -70,8 +70,8 @@ def test_launcher_lifecycle_and_communication(tmp_path: Path) -> None:
         assert status_msg is not None
         assert status_msg["type"] == "status"
         assert status_msg["profile_id"] == profile_id
-        assert status_msg["hp_pct"] == 92
-        assert status_msg["xp_gained"] == 15
+        assert status_msg["hp_pct"] == 100
+        assert status_msg["xp_gained"] == 0
 
         # 3. Send PAUSE command
         launcher.send_command("pause")

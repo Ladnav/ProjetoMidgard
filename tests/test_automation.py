@@ -63,6 +63,9 @@ def test_heal_module_trigger_on_low_health() -> None:
 
     # 2. Damaged/Low HP state (Black/empty returns 90% via OCR, triggering under 95% threshold)
     img_damaged = Image.new("RGB", (24, 10), color=(255, 255, 255))
+    from unittest.mock import MagicMock
+    module.recognizer.extract_percentage_or_values = MagicMock(return_value=(90, 100))
+    
     result_damaged = module.evaluate(img_damaged)
     assert result_damaged is not None
     assert "Tapped F3" in result_damaged
@@ -89,6 +92,9 @@ def test_heal_module_respects_cooldown() -> None:
     }
     module = HealModule(rules, adapter)
     img_damaged = Image.new("RGB", (24, 10), color=(255, 255, 255))
+    
+    from unittest.mock import MagicMock
+    module.recognizer.extract_percentage_or_values = MagicMock(return_value=(90, 100))
 
     # First evaluation succeeds
     res1 = module.evaluate(img_damaged)

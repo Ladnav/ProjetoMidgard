@@ -1,6 +1,7 @@
 """Windows GDI screen capture service using ctypes."""
 
 import ctypes
+import ctypes.wintypes
 
 from PIL import Image
 
@@ -15,6 +16,65 @@ class RECT(ctypes.Structure):
         ("right", ctypes.c_long),
         ("bottom", ctypes.c_long),
     ]
+
+
+# Configure explicit 64-bit argtypes and restypes for Win32 APIs (TASK-002)
+user32 = ctypes.windll.user32
+gdi32 = ctypes.windll.gdi32
+
+user32.IsWindow.argtypes = [ctypes.c_void_p]
+user32.IsWindow.restype = ctypes.c_bool
+
+user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
+user32.IsWindowVisible.restype = ctypes.c_bool
+
+user32.GetClientRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(RECT)]
+user32.GetClientRect.restype = ctypes.c_bool
+
+user32.GetWindowRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(RECT)]
+user32.GetWindowRect.restype = ctypes.c_bool
+
+user32.GetDC.argtypes = [ctypes.c_void_p]
+user32.GetDC.restype = ctypes.c_void_p
+
+user32.ReleaseDC.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+user32.ReleaseDC.restype = ctypes.c_int
+
+gdi32.CreateCompatibleDC.argtypes = [ctypes.c_void_p]
+gdi32.CreateCompatibleDC.restype = ctypes.c_void_p
+
+gdi32.CreateCompatibleBitmap.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+gdi32.CreateCompatibleBitmap.restype = ctypes.c_void_p
+
+gdi32.SelectObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+gdi32.SelectObject.restype = ctypes.c_void_p
+
+gdi32.BitBlt.argtypes = [
+    ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+    ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_ulong
+]
+gdi32.BitBlt.restype = ctypes.c_bool
+
+gdi32.GetBitmapBits.argtypes = [ctypes.c_void_p, ctypes.c_long, ctypes.c_void_p]
+gdi32.GetBitmapBits.restype = ctypes.c_long
+
+gdi32.DeleteObject.argtypes = [ctypes.c_void_p]
+gdi32.DeleteObject.restype = ctypes.c_bool
+
+gdi32.DeleteDC.argtypes = [ctypes.c_void_p]
+gdi32.DeleteDC.restype = ctypes.c_bool
+
+user32.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+user32.GetWindowThreadProcessId.restype = ctypes.c_ulong
+
+user32.GetWindowTextLengthW.argtypes = [ctypes.c_void_p]
+user32.GetWindowTextLengthW.restype = ctypes.c_int
+
+user32.GetWindowTextW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int]
+user32.GetWindowTextW.restype = ctypes.c_int
+
+user32.SetWindowTextW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p]
+user32.SetWindowTextW.restype = ctypes.c_bool
 
 
 def set_process_dpi_aware() -> None:

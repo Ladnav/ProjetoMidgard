@@ -1902,7 +1902,7 @@ class ProfilesPage(Page):
             return None
 
     def _pick_hp_crop(self) -> None:
-        """Capture the top-left coordinate of the HP text bounding box."""
+        """Capture the HP text bounding box coordinates and size."""
         pixmap = self._capture_game_window()
         if pixmap is None:
             return
@@ -1911,9 +1911,12 @@ class ProfilesPage(Page):
             if dialog.selected_x is not None:
                 self.heal_hp_x.setValue(dialog.selected_x)
                 self.heal_hp_y.setValue(dialog.selected_y)
+                if dialog.selected_w is not None and dialog.selected_w > 0:
+                    self.heal_hp_w.setValue(dialog.selected_w)
+                    self.heal_hp_h.setValue(dialog.selected_h)
 
     def _pick_sp_crop(self) -> None:
-        """Capture the top-left coordinate of the SP text bounding box."""
+        """Capture the SP text bounding box coordinates and size."""
         pixmap = self._capture_game_window()
         if pixmap is None:
             return
@@ -1922,6 +1925,9 @@ class ProfilesPage(Page):
             if dialog.selected_x is not None:
                 self.heal_sp_x.setValue(dialog.selected_x)
                 self.heal_sp_y.setValue(dialog.selected_y)
+                if dialog.selected_w is not None and dialog.selected_w > 0:
+                    self.heal_sp_w.setValue(dialog.selected_w)
+                    self.heal_sp_h.setValue(dialog.selected_h)
 
     def _verify_healing_crops(self) -> None:
         """Capture the current frame, crop HP/SP bounding boxes, parse them with OCR, and show visual dialog."""
@@ -2065,8 +2071,14 @@ class ProfilesPage(Page):
         # Trigger selection Dialog
         dialog = WindowListDialog(windows, self)
         if dialog.exec() == QDialog.Accepted and dialog.selected_hwnd is not None:
-            # Bind character profile directly using the format "WindowName [PID: 1234]"
-            new_title = f"{search_query} [PID: {dialog.selected_pid}]"
+            # Bind character profile using the profile name + PID format (TASK-002)
+            profile_name = profile.name
+            new_title = f"{profile_name} [PID: {dialog.selected_pid}]"
+            
+            # Physically rename the target window on OS level so from_title string matches (TASK-002)
+            from midgard.vision.capture import rename_window
+            rename_window(dialog.selected_hwnd, new_title)
+            
             self.window_title_input.setText(new_title)
             # Persist directly in SQLite
             self.profile_store.update_profile_window_title(profile_id, new_title)
@@ -2074,7 +2086,7 @@ class ProfilesPage(Page):
                 self,
                 "Success",
                 f"Successfully injected profile '{profile.name}'!\n"
-                f"Bound to Window PID: {dialog.selected_pid}",
+                f"Bound & Renamed Window to: {new_title}",
             )
 
     def _record_waypoint(self) -> None:

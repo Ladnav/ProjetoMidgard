@@ -267,6 +267,14 @@ not available at the time.
 - Added custom script path selectors under Navigation settings tab rules (`src/midgard/ui/pages.py`).
 - Created `tests/test_custom_plugins.py` and succeeded verification check with all 83 tests passing.
 
+## 2026-06-29 — TASK-035 GUI Drag Box Region Selection Picker and Pixel Template OCR
+
+- Implemented drag-to-select regions (`QRubberBand`) in `PickDialog` and `PickerLabel` (`src/midgard/ui/picker.py`).
+- Added support for automatic width and height resolution inside `_pick_hp_crop` and `_pick_sp_crop` (`src/midgard/ui/pages.py`).
+- Replaced dummy placeholder mock values with a fully dynamic pixel template-matching digit recognition classification engine (`src/midgard/vision/ocr.py`).
+- Updated window injection names to use character profile names instead of search query strings (`src/midgard/ui/pages.py`).
+- Fixed 64-bit ctypes handles truncation bugs by explicitly declaring user32/gdi32 prototypes (`src/midgard/vision/capture.py`).
+
 
 
 

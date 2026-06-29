@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-034 — Custom python script hot-plugins loader and compiler.
+TASK-035 — GUI Drag Box Region Selection Picker and Pixel Template OCR.
 
 ## Present
 
@@ -102,7 +102,9 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 - Win32 Process ID (PID) query functions, window handle (HWND) discovery by PID, and target selection UI list dialogs tested and passed
 - Native Windows launch and dark/light theme screenshots were visually inspected
 - The uv lock resolves the full PySide6 dependency for CI installation
+- Drag box region selection picker allows live screen-overlay cropping, automatic coordinate updates to the UI, and OCR validation integration
+- Template OCR logic successfully extracts text from selected regions using binarized image processing
 
 ## Delivery state
 
-TASK-034 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-035 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

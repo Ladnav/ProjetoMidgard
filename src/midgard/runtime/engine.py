@@ -232,11 +232,8 @@ class RuntimeEngine:
 
     def _tick(self) -> None:
         """Execute active automation modules."""
-        # Simulate base metrics
-        self.xp_gained += 15
-        self.loot_collected += 1
-
-        hp_pct = 92
+        hp_pct = 100
+        sp_pct = 100
         # Run GDI Screen Capture and Modules
         if self.capture_service:
             try:
@@ -251,7 +248,7 @@ class RuntimeEngine:
                 image = self.capture_service.capture(desktop_fallback=fallback_enabled)
                 self.capture_failures = 0
 
-                # 1. Calculate dynamic HP status percentage first so evasion has real data
+                # 1. Calculate dynamic HP/SP status percentage first so evasion has real data
                 if self.heal_module and self.heal_module.enabled:
                     try:
                         width, height = image.size
@@ -265,9 +262,26 @@ class RuntimeEngine:
                         if hp_max > 0:
                             hp_pct = int(hp_cur / hp_max * 100.0)
                         else:
-                            hp_pct = 92
+                            hp_pct = 100
                     except Exception:
-                        hp_pct = 92
+                        hp_pct = 100
+
+                if self.heal_module and self.heal_module.sp_enabled:
+                    try:
+                        width, height = image.size
+                        sx, sy = self.heal_module.sp_x, self.heal_module.sp_y
+                        sw, sh = self.heal_module.sp_w, self.heal_module.sp_h
+                        sx2 = min(sx + sw, width)
+                        sy2 = min(sy + sh, height)
+                        sp_crop = image.crop((sx, sy, sx2, sy2))
+                        
+                        sp_cur, sp_max = self.heal_module.recognizer.extract_percentage_or_values(sp_crop)
+                        if sp_max > 0:
+                            sp_pct = int(sp_cur / sp_max * 100.0)
+                        else:
+                            sp_pct = 100
+                    except Exception:
+                        sp_pct = 100
 
                 # Check for configured visual search templates
                 # Format: detector.template_path = "/path/to/template.png"
@@ -499,7 +513,7 @@ class RuntimeEngine:
             "type": "status",
             "profile_id": self.profile_id,
             "hp_pct": hp_pct,
-            "sp_pct": 74,
+            "sp_pct": sp_pct,
             "xp_gained": self.xp_gained,
             "loot_collected": self.loot_collected,
         }

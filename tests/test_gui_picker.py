@@ -58,6 +58,8 @@ def test_profiles_page_picker_integration(tmp_path) -> None:
         mock_inst.selected_r = 255
         mock_inst.selected_g = 128
         mock_inst.selected_b = 64
+        mock_inst.selected_w = None
+        mock_inst.selected_h = None
         MockPickDialog.return_value = mock_inst
 
         # 1. Trigger Healing Picker

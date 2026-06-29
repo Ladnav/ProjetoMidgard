@@ -3,28 +3,201 @@
 import numpy as np
 from PIL import Image
 
+CHAR_PATTERNS = {
+    '0': [
+        [0, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 0]
+    ],
+    '1': [
+        [0, 0, 1, 0, 0],
+        [0, 1, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 1, 1, 1, 0]
+    ],
+    '2': [
+        [0, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 1, 1, 0],
+        [0, 1, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1]
+    ],
+    '3': [
+        [1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 1, 0],
+        [0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 0]
+    ],
+    '4': [
+        [0, 0, 0, 1, 0],
+        [0, 0, 1, 1, 0],
+        [0, 1, 0, 1, 0],
+        [1, 0, 0, 1, 0],
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 1, 0]
+    ],
+    '5': [
+        [1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 0]
+    ],
+    '6': [
+        [0, 1, 1, 1, 0],
+        [1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 0]
+    ],
+    '7': [
+        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 1, 0],
+        [0, 0, 1, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0]
+    ],
+    '8': [
+        [0, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 0]
+    ],
+    '9': [
+        [0, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 1],
+        [0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [0, 1, 1, 1, 0]
+    ],
+    '/': [
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 1, 0],
+        [0, 0, 1, 0, 0],
+        [0, 1, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0]
+    ],
+    '%': [
+        [1, 1, 0, 0, 1],
+        [1, 1, 0, 1, 0],
+        [0, 0, 1, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 1, 0, 1, 1],
+        [1, 0, 0, 1, 1],
+        [1, 0, 0, 1, 1]
+    ]
+}
+
 
 class DigitRecognizer:
     """Solves text segments representing numeric states (like '120/150' or '90%')."""
 
     def __init__(self) -> None:
-        pass
+        # Pre-build numpy arrays of templates
+        self.templates = {k: np.array(v, dtype=np.uint8) for k, v in CHAR_PATTERNS.items()}
 
     def parse_image(self, image: Image.Image) -> str:
         """Process image crop, match templates, and return the resolved string."""
-        # Standard fallback string extraction: since we are running in a headless pytest
-        # test env with drawn manual grids, we return a parsed output matching mock inputs.
-        arr = np.array(image.convert("L"))
+        # Convert to grayscale
+        gray = image.convert("L")
+        arr = np.array(gray)
         if np.sum(arr) == 0:
             return ""
 
-        # Simple pixel heuristic for testing
-        h, w = arr.shape
-        if w >= 24:
-            return "90%"
-        elif w == 60:
-            return "120/150"
-        return "100%"
+        # Binarize using high threshold (Ragnarok status text is white on colored bars)
+        binarized = (arr > 160).astype(np.uint8)
+
+        # Clear borders that might contain frame edges
+        binarized[0, :] = 0
+        binarized[-1, :] = 0
+
+        # Segment characters vertically based on pixel projection
+        col_sums = np.sum(binarized, axis=0)
+        char_ranges = []
+        in_char = False
+        start_idx = 0
+        for x in range(binarized.shape[1]):
+            has_pixels = col_sums[x] > 0
+            if has_pixels and not in_char:
+                start_idx = x
+                in_char = True
+            elif not has_pixels and in_char:
+                # Minimum character width is 1 pixel
+                if x - start_idx >= 1:
+                    char_ranges.append((start_idx, x))
+                in_char = False
+        if in_char:
+            char_ranges.append((start_idx, binarized.shape[1]))
+
+        result_chars = []
+        for start, end in char_ranges:
+            char_crop = binarized[:, start:end]
+            
+            # Find vertical boundary box inside this column segment to crop extra empty space
+            row_sums = np.sum(char_crop, axis=1)
+            y_indices = np.where(row_sums > 0)[0]
+            if len(y_indices) == 0:
+                continue
+            y_start, y_end = y_indices[0], y_indices[-1] + 1
+            char_crop = char_crop[y_start:y_end, :]
+
+            # Score this segment against all character templates
+            best_char = "?"
+            best_score = -1.0
+            
+            ch_h, ch_w = char_crop.shape
+            if ch_h <= 2 or ch_w <= 0:
+                continue
+
+            for char_key, temp_arr in self.templates.items():
+                temp_h, temp_w = temp_arr.shape
+                
+                # Scale template or crop to match sizes for comparison
+                # We scale the template to match the segment size
+                from PIL import Image as PILImage
+                temp_img = PILImage.fromarray(temp_arr * 255)
+                temp_img_scaled = temp_img.resize((ch_w, ch_h), PILImage.Resampling.NEAREST)
+                temp_scaled_arr = (np.array(temp_img_scaled) > 127).astype(np.uint8)
+
+                # Compute match score (percentage of matching pixels)
+                matches = np.sum(char_crop == temp_scaled_arr)
+                score = matches / (ch_h * ch_w)
+
+                if score > best_score:
+                    best_score = score
+                    best_char = char_key
+
+            # Accept character classification if it matches sufficiently well
+            if best_score > 0.65:
+                result_chars.append(best_char)
+
+        return "".join(result_chars)
 
     def extract_percentage_or_values(self, image: Image.Image) -> tuple[int, int]:
         """Parse status numbers (e.g. '120/150' or '90%') and return a tuple of (current, max)."""
@@ -41,11 +214,16 @@ class DigitRecognizer:
             except Exception:
                 pass
 
-        if "%" in text:
+        # Try extracting digits if slash not present
+        digits = "".join([c for c in text if c.isdigit()])
+        if digits:
             try:
-                clean_text = text.replace("%", "")
-                val = int(clean_text)
-                return val, 100
+                val = int(digits)
+                if "%" in text or val <= 100:
+                    return val, 100
+                else:
+                    # Fallback default
+                    return val, val
             except Exception:
                 pass
 
