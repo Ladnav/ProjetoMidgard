@@ -4,7 +4,7 @@ Last updated: 2026-06-28
 
 ## Phase
 
-TASK-032 — NPC Merchant Store Sell Loop dialog automation.
+TASK-033 — Hunt Zone Profiles path files and dynamic Waypoint Recorder.
 
 ## Present
 
@@ -25,12 +25,12 @@ TASK-032 — NPC Merchant Store Sell Loop dialog automation.
 - Autonomous `HealModule` cropping HP/SP character status regions and executing template-matching character OCR to parse actual health ratios (supporting both HP/SP independently)
 - Zero-dependency `DigitRecognizer` resolving digit outputs (e.g. '120/150' or '90%') from binarized UI crops and computing exact health metrics
 - Autonomous `CombatModule` performing target scanning: color-based centroid, prioritized template matching (nested high/low priority subdirs), and Hover Red HP Bar cursor validations.
-- Autonomous `NavigationModule` executing sequential waypoint walking loops, loading obstacle maps from PNG/BMP visual images and JSON coordinate matrices, routing paths via A* pathfinding, coordinating transition portal cross-map pathing gates, and running anti-stuck waypoint recovery checks.
+- Autonomous `NavigationModule` executing sequential waypoint walking loops, loading obstacle maps from PNG/BMP visual images and JSON coordinate matrices, routing paths via A* pathfinding, coordinating transition portal cross-map pathing gates, running anti-stuck waypoint recovery checks, and loading dynamic JSON route files.
 - Autonomous `StashModule` monitoring weight indicators, running Kafra storage banking, merchant potion restocking, and selling junk items at NPC stores.
 - `DiscordNotifier` posting real-time warning alerts and webhook messages on visual anomaly triggers.
 - Autonomous `ConsumablesModule` evaluating duration intervals or visual active status bar icons check states to cast buffs and use utility items.
 - Autonomous `ConsumablesModule` evaluating duration intervals to recast buffs and use utility items
-- Interactive `ProfilesPage` with tabbed rule forms (Healing, Consumables, Looting, Combat, Navigation, Security, Stash) that persist configurations directly into SQLite. Healing tab contains a 'Verify Crop' modal helper to visually inspect cropped image segments (scaled x3) and check parsed OCR values before starting the engine. The Looting tab allows configuring dropped item name label colors, color tolerance, cooldowns, and advanced rare-item filter rules. The Combat tab configures multiple OpenCV target modes, target priority checklists, template offsets, and hover check box dimensions. The Security tab manages Discord webhook urls. The Navigation tab configures portal transitions. The Stash tab manages Kafra coordinates, restocking limits, and NPC selling loops.
+- Interactive `ProfilesPage` with tabbed rule forms (Healing, Consumables, Looting, Combat, Navigation, Security, Stash) that persist configurations directly into SQLite. Healing tab contains a 'Verify Crop' modal helper to visually inspect cropped image segments (scaled x3) and check parsed OCR values before starting the engine. The Looting tab allows configuring dropped item name label colors, color tolerance, cooldowns, and advanced rare-item filter rules. The Combat tab configures multiple OpenCV target modes, target priority checklists, template offsets, and hover check box dimensions. The Security tab manages Discord webhook urls. The Navigation tab configures portal transitions and supports a dynamic Hunt Path JSON file recorder manager. The Stash tab manages Kafra coordinates, restocking limits, and NPC selling loops.
 - SettingsPage containing appearance theme selectors, GameGuard Evasion Desktop Capture Fallback checks, and border safety input clamps.
 - Polymorphic Bezier trajectories injecting Gaussian noise jitter and Fitts' law velocity acceleration/deceleration sleeps.
 - Advanced color-filtered `LootModule` supporting selective looting rules based on dropped item label colors (e.g. Rare Only).
@@ -81,7 +81,7 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 - Ruff formatting check passed
 - Ruff lint check passed
-- pytest passed with 81 tests
+- pytest passed with 82 tests
 - SQLite theme persistence passed across application starts
 - SQLite character profiles CRUD, rules, cascading deletion, and stats tracking passed
 - Runtime launcher, TCP protocol packing, engine cycle commands, and graceful subprocess termination passed
@@ -105,4 +105,4 @@ Last verified on 2026-06-28 with CPython 3.14.5 and PySide6 6.11.1:
 
 ## Delivery state
 
-TASK-032 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.
+TASK-033 is completed and verified. Integration into `main` remains subject to human review and will not occur automatically.

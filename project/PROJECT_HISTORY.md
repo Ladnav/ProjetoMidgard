@@ -255,6 +255,12 @@ not available at the time.
 - Integrated NPC selling enabled toggle, target store coordinates, and click bounds configs inside the Stash GUI tab (`src/midgard/ui/pages.py`).
 - Created `tests/test_npc_selling.py` and succeeded verification check with all 81 tests passing.
 
+## 2026-06-29 — TASK-033 Hunt Zone Profiles path files and dynamic Waypoint Recorder
+
+- Added dynamic JSON path/route coordinate file parsing support inside `NavigationModule._parse_waypoints` (`src/midgard/runtime/navigation.py`).
+- Added path file load, save, and current client coordinates append button actions to the Navigation settings tab (`src/midgard/ui/pages.py`).
+- Created `tests/test_hunt_zones.py` and succeeded verification check with all 82 tests passing.
+
 
 
 

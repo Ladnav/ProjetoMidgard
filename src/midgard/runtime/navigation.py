@@ -44,6 +44,27 @@ class NavigationModule:
         self.stuck_timeout = 5.0  # seconds until stuck recovery triggers
 
     def _parse_waypoints(self, raw_str: str) -> None:
+        """Parse waypoint configuration string or JSON file path."""
+        if not raw_str:
+            return
+            
+        # Try to load as JSON file path if ends with .json (TASK-033)
+        if raw_str.endswith(".json"):
+            from pathlib import Path
+            import json
+            p = Path(raw_str)
+            if p.exists():
+                try:
+                    with open(p, "r") as f:
+                        data = json.load(f)
+                    for item in data:
+                        # expected format: [x, y, wait]
+                        if len(item) == 3:
+                            self.waypoints.append((int(item[0]), int(item[1]), float(item[2])))
+                    return
+                except Exception:
+                    pass
+
         """Parse waypoint configuration string of format 'x,y,wait;x,y,wait'."""
         if not raw_str:
             return

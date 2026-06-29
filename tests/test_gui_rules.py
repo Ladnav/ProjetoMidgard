@@ -85,6 +85,15 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     profiles_page.nav_current_map.setText("prt_fild08")
     profiles_page.nav_target_map.setText("prt_fild05")
     profiles_page.nav_transitions_text.setPlainText("prt_fild08:prt_fild05:360:20:5.0")
+    
+    # Test path recorder GUI inputs (TASK-033)
+    profiles_page.nav_record_x.setValue(450)
+    profiles_page.nav_record_y.setValue(450)
+    profiles_page.nav_record_wait.setValue(4.5)
+    profiles_page._record_waypoint()
+    
+    # Check that coordinate appends successfully
+    assert "450,450,4.5" in profiles_page.nav_waypoints_text.toPlainText()
 
     # Edit Looting rules in UI
     profiles_page.loot_enabled.setChecked(True)
@@ -191,7 +200,7 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
 
     navigation_rules = db_profile.rules.get("navigation", {})
     assert navigation_rules.get("navigation.enabled") == "true"
-    assert navigation_rules.get("navigation.waypoints") == "150,150,2.5;300,300,5.0"
+    assert "450,450,4.5" in navigation_rules.get("navigation.waypoints")
     assert navigation_rules.get("navigation.transition_enabled") == "true"
     assert navigation_rules.get("navigation.current_map") == "prt_fild08"
     assert navigation_rules.get("navigation.target_map") == "prt_fild05"

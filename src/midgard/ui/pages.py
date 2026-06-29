@@ -1222,6 +1222,50 @@ class ProfilesPage(Page):
         trans_layout.addRow("Map Portal Coordinates Gates", self.nav_transitions_text)
         layout.addLayout(trans_layout)
 
+        # Path Recorder Controls Row (TASK-033)
+        from PySide6.QtWidgets import QPushButton, QSpinBox, QDoubleSpinBox
+        layout.addWidget(QLabel("<b>Hunt Profile Path Recorder & Manager</b>"))
+        recorder_layout = QHBoxLayout()
+        self.nav_record_x = QSpinBox()
+        self.nav_record_x.setRange(0, 3000)
+        self.nav_record_x.setValue(100)
+        
+        self.nav_record_y = QSpinBox()
+        self.nav_record_y.setRange(0, 3000)
+        self.nav_record_y.setValue(100)
+
+        self.nav_record_wait = QDoubleSpinBox()
+        self.nav_record_wait.setRange(0.0, 60.0)
+        self.nav_record_wait.setValue(3.0)
+
+        record_btn = QPushButton("Record Waypoint")
+        record_btn.clicked.connect(self._record_waypoint)
+        
+        recorder_layout.addWidget(QLabel("X:"))
+        recorder_layout.addWidget(self.nav_record_x)
+        recorder_layout.addWidget(QLabel("Y:"))
+        recorder_layout.addWidget(self.nav_record_y)
+        recorder_layout.addWidget(QLabel("Wait (s):"))
+        recorder_layout.addWidget(self.nav_record_wait)
+        recorder_layout.addWidget(record_btn)
+        layout.addLayout(recorder_layout)
+
+        file_actions_layout = QHBoxLayout()
+        self.nav_path_filename = QLineEdit()
+        self.nav_path_filename.setPlaceholderText("e.g. paths/payon.json")
+        self.nav_path_filename.setText("paths/hunt_route.json")
+        
+        save_path_btn = QPushButton("Save Path File")
+        save_path_btn.clicked.connect(self._save_path_file)
+        
+        load_path_btn = QPushButton("Load Path File")
+        load_path_btn.clicked.connect(self._load_path_file)
+        
+        file_actions_layout.addWidget(self.nav_path_filename)
+        file_actions_layout.addWidget(save_path_btn)
+        file_actions_layout.addWidget(load_path_btn)
+        layout.addLayout(file_actions_layout)
+
         self.tab_widget.addTab(tab, "Navigation")
 
     def _init_security_tab(self) -> None:
@@ -2013,3 +2057,67 @@ class ProfilesPage(Page):
                 f"Successfully injected profile '{profile.name}'!\n"
                 f"Bound to Window PID: {dialog.selected_pid}",
             )
+
+    def _record_waypoint(self) -> None:
+        """Append current coordinate inputs to the main waypoints text area."""
+        x = self.nav_record_x.value()
+        y = self.nav_record_y.value()
+        w = self.nav_record_wait.value()
+        current_text = self.nav_waypoints_text.toPlainText().strip()
+        new_segment = f"{x},{y},{w}"
+        if current_text:
+            self.nav_waypoints_text.setPlainText(f"{current_text};{new_segment}")
+        else:
+            self.nav_waypoints_text.setPlainText(new_segment)
+
+    def _save_path_file(self) -> None:
+        """Parse text area waypoints and serialize as JSON coordinates sequence to filename."""
+        raw_str = self.nav_waypoints_text.toPlainText().strip()
+        filename = self.nav_path_filename.text().strip()
+        if not filename:
+            QMessageBox.warning(self, "Invalid Path", "Please enter a valid path filename first.")
+            return
+            
+        # Parse segments
+        waypoints = []
+        if raw_str:
+            for seg in raw_str.split(";"):
+                parts = seg.split(",")
+                if len(parts) == 3:
+                    try:
+                        waypoints.append([int(parts[0]), int(parts[1]), float(parts[2])])
+                    except ValueError:
+                        pass
+                        
+        from pathlib import Path
+        import json
+        try:
+            p = Path(filename)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with open(p, "w") as f:
+                json.dump(waypoints, f, indent=2)
+            QMessageBox.information(self, "Success", f"Successfully saved path file to '{filename}'.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save path file: {e}")
+
+    def _load_path_file(self) -> None:
+        """Deserialize JSON coordinates path file and load waypoints into text area."""
+        filename = self.nav_path_filename.text().strip()
+        from pathlib import Path
+        import json
+        p = Path(filename)
+        if not p.exists():
+            QMessageBox.warning(self, "Not Found", f"No path file found at: '{filename}'")
+            return
+            
+        try:
+            with open(p, "r") as f:
+                data = json.load(f)
+            segments = []
+            for item in data:
+                if len(item) == 3:
+                    segments.append(f"{item[0]},{item[1]},{item[2]}")
+            self.nav_waypoints_text.setPlainText(";".join(segments))
+            QMessageBox.information(self, "Success", f"Successfully loaded path file '{filename}'.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load path file: {e}")
