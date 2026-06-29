@@ -202,16 +202,17 @@ class DigitRecognizer:
                 temp_img_scaled = temp_img.resize((ch_w, ch_h), PILImage.Resampling.NEAREST)
                 temp_scaled_arr = (np.array(temp_img_scaled) > 127).astype(np.uint8)
 
-                # Compute match score (percentage of matching pixels)
-                matches = np.sum(char_crop == temp_scaled_arr)
-                score = matches / (ch_h * ch_w)
+                # Compute IoU (Jaccard index) of active pixels (TASK-035)
+                intersection = np.sum((char_crop == 1) & (temp_scaled_arr == 1))
+                union = np.sum((char_crop == 1) | (temp_scaled_arr == 1))
+                score = intersection / union if union > 0 else 0.0
 
                 if score > best_score:
                     best_score = score
                     best_char = char_key
 
-            # Accept character classification if it matches sufficiently well
-            if best_score > 0.65:
+            # Accept character classification if it matches sufficiently well (IoU >= 0.35)
+            if best_score > 0.35:
                 # Post-processing to distinguish similar characters (TASK-035)
                 # '8' and '0' look very similar scaled, but '8' has pixels in the middle row, '0' is empty.
                 if best_char in ('0', '8'):

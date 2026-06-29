@@ -19,8 +19,8 @@ class RECT(ctypes.Structure):
 
 
 # Configure explicit 64-bit argtypes and restypes for Win32 APIs (TASK-002)
-user32 = ctypes.windll.user32
-gdi32 = ctypes.windll.gdi32
+user32 = ctypes.WinDLL("user32")
+gdi32 = ctypes.WinDLL("gdi32")
 
 user32.IsWindow.argtypes = [ctypes.c_void_p]
 user32.IsWindow.restype = ctypes.c_bool

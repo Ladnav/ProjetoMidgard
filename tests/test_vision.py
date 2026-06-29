@@ -26,14 +26,14 @@ def test_dpi_awareness_does_not_crash() -> None:
 
 def test_find_window_invalid_title() -> None:
     """Searching for a non-existent window title returns None."""
-    with patch("ctypes.windll.user32.EnumWindows") as mock_enum:
+    with patch("midgard.vision.capture.user32.EnumWindows") as mock_enum:
         mock_enum.return_value = 1
         assert find_window_by_title("ThisWindowDoesNotExistUniqueString_123") is None
 
 
 def test_instantiate_invalid_hwnd() -> None:
     """Creating capture service with invalid HWND raises ValueError."""
-    with patch("ctypes.windll.user32.IsWindow", return_value=0):
+    with patch("midgard.vision.capture.user32.IsWindow", return_value=0):
         with pytest.raises(ValueError, match="Invalid HWND handle"):
             WindowCaptureService(999999)
 
@@ -57,17 +57,17 @@ def test_capture_success_mocked() -> None:
 
     # Mock User32 & GDI32 calls
     with (
-        patch("ctypes.windll.user32.IsWindow", return_value=1),
-        patch("ctypes.windll.user32.GetClientRect", side_effect=mock_get_client_rect),
-        patch("ctypes.windll.user32.GetDC", return_value=11),
-        patch("ctypes.windll.gdi32.CreateCompatibleDC", return_value=22),
-        patch("ctypes.windll.gdi32.CreateCompatibleBitmap", return_value=33),
-        patch("ctypes.windll.gdi32.SelectObject", return_value=44),
-        patch("ctypes.windll.gdi32.BitBlt", return_value=1),
-        patch("ctypes.windll.gdi32.GetBitmapBits", side_effect=mock_get_bitmap_bits),
-        patch("ctypes.windll.gdi32.DeleteObject", return_value=1) as mock_delete_obj,
-        patch("ctypes.windll.gdi32.DeleteDC", return_value=1) as mock_delete_dc,
-        patch("ctypes.windll.user32.ReleaseDC", return_value=1) as mock_release_dc,
+        patch("midgard.vision.capture.user32.IsWindow", return_value=1),
+        patch("midgard.vision.capture.user32.GetClientRect", side_effect=mock_get_client_rect),
+        patch("midgard.vision.capture.user32.GetDC", return_value=11),
+        patch("midgard.vision.capture.gdi32.CreateCompatibleDC", return_value=22),
+        patch("midgard.vision.capture.gdi32.CreateCompatibleBitmap", return_value=33),
+        patch("midgard.vision.capture.gdi32.SelectObject", return_value=44),
+        patch("midgard.vision.capture.gdi32.BitBlt", return_value=1),
+        patch("midgard.vision.capture.gdi32.GetBitmapBits", side_effect=mock_get_bitmap_bits),
+        patch("midgard.vision.capture.gdi32.DeleteObject", return_value=1) as mock_delete_obj,
+        patch("midgard.vision.capture.gdi32.DeleteDC", return_value=1) as mock_delete_dc,
+        patch("midgard.vision.capture.user32.ReleaseDC", return_value=1) as mock_release_dc,
     ):
         service = WindowCaptureService(hwnd)
         image = service.capture()
@@ -96,16 +96,16 @@ def test_capture_failure_bitblt() -> None:
         return 1
 
     with (
-        patch("ctypes.windll.user32.IsWindow", return_value=1),
-        patch("ctypes.windll.user32.GetClientRect", side_effect=mock_get_client_rect),
-        patch("ctypes.windll.user32.GetDC", return_value=11),
-        patch("ctypes.windll.gdi32.CreateCompatibleDC", return_value=22),
-        patch("ctypes.windll.gdi32.CreateCompatibleBitmap", return_value=33),
-        patch("ctypes.windll.gdi32.SelectObject", return_value=44),
-        patch("ctypes.windll.gdi32.BitBlt", return_value=0),  # BitBlt fails
-        patch("ctypes.windll.gdi32.DeleteObject", return_value=1) as mock_delete_obj,
-        patch("ctypes.windll.gdi32.DeleteDC", return_value=1) as mock_delete_dc,
-        patch("ctypes.windll.user32.ReleaseDC", return_value=1) as mock_release_dc,
+        patch("midgard.vision.capture.user32.IsWindow", return_value=1),
+        patch("midgard.vision.capture.user32.GetClientRect", side_effect=mock_get_client_rect),
+        patch("midgard.vision.capture.user32.GetDC", return_value=11),
+        patch("midgard.vision.capture.gdi32.CreateCompatibleDC", return_value=22),
+        patch("midgard.vision.capture.gdi32.CreateCompatibleBitmap", return_value=33),
+        patch("midgard.vision.capture.gdi32.SelectObject", return_value=44),
+        patch("midgard.vision.capture.gdi32.BitBlt", return_value=0),  # BitBlt fails
+        patch("midgard.vision.capture.gdi32.DeleteObject", return_value=1) as mock_delete_obj,
+        patch("midgard.vision.capture.gdi32.DeleteDC", return_value=1) as mock_delete_dc,
+        patch("midgard.vision.capture.user32.ReleaseDC", return_value=1) as mock_release_dc,
     ):
         service = WindowCaptureService(hwnd)
         with pytest.raises(RuntimeError, match="GDI BitBlt transfer failed"):
@@ -127,17 +127,17 @@ def test_capture_failure_get_bitmap_bits() -> None:
         return 1
 
     with (
-        patch("ctypes.windll.user32.IsWindow", return_value=1),
-        patch("ctypes.windll.user32.GetClientRect", side_effect=mock_get_client_rect),
-        patch("ctypes.windll.user32.GetDC", return_value=11),
-        patch("ctypes.windll.gdi32.CreateCompatibleDC", return_value=22),
-        patch("ctypes.windll.gdi32.CreateCompatibleBitmap", return_value=33),
-        patch("ctypes.windll.gdi32.SelectObject", return_value=44),
-        patch("ctypes.windll.gdi32.BitBlt", return_value=1),
-        patch("ctypes.windll.gdi32.GetBitmapBits", return_value=0),  # Fails to copy bits
-        patch("ctypes.windll.gdi32.DeleteObject", return_value=1) as mock_delete_obj,
-        patch("ctypes.windll.gdi32.DeleteDC", return_value=1) as mock_delete_dc,
-        patch("ctypes.windll.user32.ReleaseDC", return_value=1) as mock_release_dc,
+        patch("midgard.vision.capture.user32.IsWindow", return_value=1),
+        patch("midgard.vision.capture.user32.GetClientRect", side_effect=mock_get_client_rect),
+        patch("midgard.vision.capture.user32.GetDC", return_value=11),
+        patch("midgard.vision.capture.gdi32.CreateCompatibleDC", return_value=22),
+        patch("midgard.vision.capture.gdi32.CreateCompatibleBitmap", return_value=33),
+        patch("midgard.vision.capture.gdi32.SelectObject", return_value=44),
+        patch("midgard.vision.capture.gdi32.BitBlt", return_value=1),
+        patch("midgard.vision.capture.gdi32.GetBitmapBits", return_value=0),  # Fails to copy bits
+        patch("midgard.vision.capture.gdi32.DeleteObject", return_value=1) as mock_delete_obj,
+        patch("midgard.vision.capture.gdi32.DeleteDC", return_value=1) as mock_delete_dc,
+        patch("midgard.vision.capture.user32.ReleaseDC", return_value=1) as mock_release_dc,
     ):
         service = WindowCaptureService(hwnd)
         with pytest.raises(RuntimeError, match="Failed to read bits"):

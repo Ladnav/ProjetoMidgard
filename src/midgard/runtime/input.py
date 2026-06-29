@@ -19,6 +19,46 @@ MOUSEEVENTF_RIGHTUP = 0x0010
 MOUSEEVENTF_ABSOLUTE = 0x8000
 
 
+# RECT structure for ctypes
+class RECT(ctypes.Structure):
+    """RECT structure for Win32 API calls."""
+
+    _fields_ = [
+        ("left", ctypes.c_long),
+        ("top", ctypes.c_long),
+        ("right", ctypes.c_long),
+        ("bottom", ctypes.c_long),
+    ]
+
+
+# Configure explicit private WinDLL instance and types to avoid shared global cache crashes (TASK-035)
+user32 = ctypes.WinDLL("user32")
+
+user32.IsWindow.argtypes = [ctypes.c_void_p]
+user32.IsWindow.restype = ctypes.c_bool
+
+user32.GetForegroundWindow.argtypes = []
+user32.GetForegroundWindow.restype = ctypes.c_void_p
+
+user32.SetForegroundWindow.argtypes = [ctypes.c_void_p]
+user32.SetForegroundWindow.restype = ctypes.c_bool
+
+user32.SendInput.argtypes = [ctypes.c_uint, ctypes.c_void_p, ctypes.c_int]
+user32.SendInput.restype = ctypes.c_uint
+
+user32.GetClientRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(RECT)]
+user32.GetClientRect.restype = ctypes.c_bool
+
+user32.GetCursorPos.argtypes = [ctypes.c_void_p]
+user32.GetCursorPos.restype = ctypes.c_bool
+
+user32.ClientToScreen.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+user32.ClientToScreen.restype = ctypes.c_bool
+
+user32.GetSystemMetrics.argtypes = [ctypes.c_int]
+user32.GetSystemMetrics.restype = ctypes.c_int
+
+
 class KEYBDINPUT(ctypes.Structure):
     """Win32 KEYBDINPUT structure for keyboard simulation."""
 
@@ -174,7 +214,6 @@ class Win32InputAdapter(BaseInputAdapter):
     def _ensure_focus(self) -> None:
         """Bring target window to the foreground if not active to ensure SendInput reaches the window."""
         if self.hwnd:
-            user32 = ctypes.windll.user32
             if user32.IsWindow(self.hwnd):
                 foreground = user32.GetForegroundWindow()
                 if foreground != self.hwnd:
@@ -192,7 +231,7 @@ class Win32InputAdapter(BaseInputAdapter):
             dwExtraInfo=None,
         )
         inp = INPUT(type=INPUT_KEYBOARD, ii=INPUT_UNION(ki=ki))
-        ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
+        user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
 
     def release_key(self, scan_code: int) -> None:
         """Simulate releasing a key."""
@@ -205,7 +244,7 @@ class Win32InputAdapter(BaseInputAdapter):
             dwExtraInfo=None,
         )
         inp = INPUT(type=INPUT_KEYBOARD, ii=INPUT_UNION(ki=ki))
-        ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
+        user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
 
     def move_mouse_relative(self, hwnd: int, client_x: int, client_y: int) -> None:
         """Move the mouse relative to the client area using a smooth Bezier path.
@@ -216,7 +255,7 @@ class Win32InputAdapter(BaseInputAdapter):
         self._ensure_focus()
         # Retrieve client area rect to clamp coordinates safely
         rect = RECT()
-        if ctypes.windll.user32.GetClientRect(hwnd, ctypes.pointer(rect)):
+        if user32.GetClientRect(hwnd, ctypes.pointer(rect)):
             w = rect.right - rect.left
             h = rect.bottom - rect.top
             margin = 25
@@ -227,17 +266,20 @@ class Win32InputAdapter(BaseInputAdapter):
 
         # Get current cursor position on the screen
         cursor = POINT()
-        ctypes.windll.user32.GetCursorPos(ctypes.pointer(cursor))
+        user32.GetCursorPos(ctypes.pointer(cursor))
         start_pos = (cursor.x, cursor.y)
 
         # Convert target client coordinates to screen coordinates
         target_point = POINT(client_x, client_y)
-        ctypes.windll.user32.ClientToScreen(hwnd, ctypes.pointer(target_point))
+        ctypes.wintypes.POINT()  # ensure wintypes structures work
+        
+        # User32 ClientToScreen mapping requires pointer to POINT
+        user32.ClientToScreen(hwnd, ctypes.byref(target_point))
         end_pos = (target_point.x, target_point.y)
 
         # Get system screen resolution
-        width = ctypes.windll.user32.GetSystemMetrics(0)
-        height = ctypes.windll.user32.GetSystemMetrics(1)
+        width = user32.GetSystemMetrics(0)
+        height = user32.GetSystemMetrics(1)
 
         # Generate smooth trajectory path
         path = generate_bezier_path(start_pos, end_pos, steps=10)
@@ -257,7 +299,7 @@ class Win32InputAdapter(BaseInputAdapter):
                 dwExtraInfo=None,
             )
             inp = INPUT(type=INPUT_MOUSE, ii=INPUT_UNION(mi=mi))
-            ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
+            user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
             
             # Sinusoidal sleep speed scaling: accelerate first half, decelerate second half (Fitts' Law)
             t = (i + 1) / total_steps
@@ -282,7 +324,7 @@ class Win32InputAdapter(BaseInputAdapter):
         # Down event
         mi_down = MOUSEINPUT(dx=0, dy=0, mouseData=0, dwFlags=down_flag, time=0, dwExtraInfo=None)
         inp_down = INPUT(type=INPUT_MOUSE, ii=INPUT_UNION(mi=mi_down))
-        ctypes.windll.user32.SendInput(1, ctypes.byref(inp_down), ctypes.sizeof(inp_down))
+        user32.SendInput(1, ctypes.byref(inp_down), ctypes.sizeof(inp_down))
 
         # Human-like click hold delay
         time.sleep(random.uniform(0.04, 0.09))
@@ -290,7 +332,7 @@ class Win32InputAdapter(BaseInputAdapter):
         # Up event
         mi_up = MOUSEINPUT(dx=0, dy=0, mouseData=0, dwFlags=up_flag, time=0, dwExtraInfo=None)
         inp_up = INPUT(type=INPUT_MOUSE, ii=INPUT_UNION(mi=mi_up))
-        ctypes.windll.user32.SendInput(1, ctypes.byref(inp_up), ctypes.sizeof(inp_up))
+        user32.SendInput(1, ctypes.byref(inp_up), ctypes.sizeof(inp_up))
 
 
 # Standard Keyboard Hardware Scan Codes
