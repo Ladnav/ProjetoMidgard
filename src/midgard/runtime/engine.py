@@ -115,6 +115,9 @@ class RuntimeEngine:
                 # Find and initialize WindowCaptureService if window_title is set
                 try:
                     self.capture_service = WindowCaptureService.from_title(profile.window_title)
+                    # Pass the HWND to input adapter (TASK-002)
+                    if hasattr(self.input_adapter, "set_hwnd"):
+                        self.input_adapter.set_hwnd(self.capture_service.hwnd)
                     self.combat_module = CombatModule(
                         combat_rules, self.input_adapter, self.capture_service.hwnd
                     )

@@ -164,8 +164,26 @@ class DummyInputAdapter(BaseInputAdapter):
 class Win32InputAdapter(BaseInputAdapter):
     """Sends native hardware keyboard and mouse inputs using SendInput."""
 
+    def __init__(self) -> None:
+        self.hwnd: int | None = None
+
+    def set_hwnd(self, hwnd: int) -> None:
+        """Set the target window HWND to allow automatic window focusing before sending key events."""
+        self.hwnd = hwnd
+
+    def _ensure_focus(self) -> None:
+        """Bring target window to the foreground if not active to ensure SendInput reaches the window."""
+        if self.hwnd:
+            user32 = ctypes.windll.user32
+            if user32.IsWindow(self.hwnd):
+                foreground = user32.GetForegroundWindow()
+                if foreground != self.hwnd:
+                    user32.SetForegroundWindow(self.hwnd)
+                    time.sleep(0.05)
+
     def press_key(self, scan_code: int) -> None:
         """Simulate holding down a key."""
+        self._ensure_focus()
         ki = KEYBDINPUT(
             wVk=0,
             wScan=scan_code,
@@ -178,6 +196,7 @@ class Win32InputAdapter(BaseInputAdapter):
 
     def release_key(self, scan_code: int) -> None:
         """Simulate releasing a key."""
+        self._ensure_focus()
         ki = KEYBDINPUT(
             wVk=0,
             wScan=scan_code,
@@ -194,6 +213,7 @@ class Win32InputAdapter(BaseInputAdapter):
         Clamps client coordinates to keep them at least 25 pixels inside borders,
         preventing Ragexe coordinate calculation crashes when hitting edges.
         """
+        self._ensure_focus()
         # Retrieve client area rect to clamp coordinates safely
         rect = RECT()
         if ctypes.windll.user32.GetClientRect(hwnd, ctypes.pointer(rect)):
@@ -251,6 +271,7 @@ class Win32InputAdapter(BaseInputAdapter):
 
     def click_mouse(self, button: str = "left") -> None:
         """Trigger a mouse click (down then up) with a randomized human-like hold time."""
+        self._ensure_focus()
         if button == "left":
             down_flag = MOUSEEVENTF_LEFTDOWN
             up_flag = MOUSEEVENTF_LEFTUP

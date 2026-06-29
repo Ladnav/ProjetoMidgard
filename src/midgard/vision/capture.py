@@ -206,21 +206,34 @@ class WindowCaptureService:
     @classmethod
     def from_title(cls, title_substring: str) -> "WindowCaptureService":
         """Factory method to find target window title and instantiate the service."""
-        # Check if the title is actually a stored PID binding format "Ragnarok [PID: 1234]"
+        # 1. Check if the title is actually a stored PID binding format "Ragnarok [PID: 1234]"
         if " [pid: " in title_substring.lower():
             try:
                 pid_str = title_substring.lower().split(" [pid: ")[-1].replace("]", "").strip()
                 pid = int(pid_str)
                 hwnd = find_hwnd_by_pid(pid)
+                if hwnd is not None and user32.IsWindow(hwnd):
+                    return cls(hwnd)
+            except Exception:
+                pass
+
+        # 2. Try finding by matching title substring (with the PID suffix)
+        hwnd = find_window_by_title(title_substring)
+        if hwnd is not None:
+            return cls(hwnd)
+
+        # 3. Fallback: If title has [PID: ...], split it and look for the base character profile name
+        if " [pid: " in title_substring.lower():
+            try:
+                base_title = title_substring.split(" [PID:")[0].split(" [pid:")[0].strip()
+                hwnd = find_window_by_title(base_title)
                 if hwnd is not None:
                     return cls(hwnd)
             except Exception:
                 pass
 
-        hwnd = find_window_by_title(title_substring)
-        if hwnd is None:
-            raise ValueError(f"No window found matching title: '{title_substring}'")
-        return cls(hwnd)
+        # 4. If all fails, raise
+        raise ValueError(f"No window found matching title: '{title_substring}'")
 
     def capture(self, desktop_fallback: bool = False) -> Image.Image:
         """Capture the client area of the target window.

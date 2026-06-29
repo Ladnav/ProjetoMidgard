@@ -145,21 +145,28 @@ class DigitRecognizer:
         binarized[0, :] = 0
         binarized[-1, :] = 0
 
-        # Segment characters vertically based on pixel projection
+        # Segment characters vertically based on pixel projection with tolerance of 1 empty column
         col_sums = np.sum(binarized, axis=0)
         char_ranges = []
         in_char = False
         start_idx = 0
+        empty_streak = 0
+        
         for x in range(binarized.shape[1]):
             has_pixels = col_sums[x] > 0
-            if has_pixels and not in_char:
-                start_idx = x
-                in_char = True
-            elif not has_pixels and in_char:
-                # Minimum character width is 1 pixel
-                if x - start_idx >= 1:
-                    char_ranges.append((start_idx, x))
-                in_char = False
+            if has_pixels:
+                if not in_char:
+                    start_idx = x
+                    in_char = True
+                empty_streak = 0
+            else:
+                if in_char:
+                    empty_streak += 1
+                    # Tolerate up to 1 consecutive empty column (TASK-035)
+                    if empty_streak > 1:
+                        char_ranges.append((start_idx, x - empty_streak + 1))
+                        in_char = False
+                        empty_streak = 0
         if in_char:
             char_ranges.append((start_idx, binarized.shape[1]))
 
@@ -203,6 +210,26 @@ class DigitRecognizer:
 
             # Accept character classification if it matches sufficiently well
             if best_score > 0.65:
+                # Post-processing to distinguish similar characters (TASK-035)
+                # '8' and '0' look very similar scaled, but '8' has pixels in the middle row, '0' is empty.
+                if best_char in ('0', '8'):
+                    mid_y = ch_h // 2
+                    mid_row = char_crop[mid_y, :]
+                    # Sum middle row pixels (excluding borders)
+                    if len(mid_row) > 2:
+                        center_sum = np.sum(mid_row[1:-1])
+                        if center_sum >= 1:
+                            best_char = '8'
+                        else:
+                            best_char = '0'
+                    else:
+                        # Fallback to total density check
+                        density = np.sum(char_crop) / (ch_h * ch_w)
+                        if density > 0.6:
+                            best_char = '8'
+                        else:
+                            best_char = '0'
+                
                 result_chars.append(best_char)
 
         return "".join(result_chars)
