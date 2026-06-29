@@ -134,18 +134,18 @@ class DigitRecognizer:
         mean_val = np.mean(arr)
         if mean_val > 127:
             # Background is light, text is dark (e.g. black text on light background)
-            # Threshold: pixels below 120 become white (foreground)
-            binarized = (arr < 120).astype(np.uint8)
+            # Threshold: pixels below 135 become white (foreground)
+            binarized = (arr < 135).astype(np.uint8)
         else:
             # Background is dark, text is light (e.g. white text on dark background)
-            # Threshold: pixels above 150 become white (foreground)
-            binarized = (arr > 150).astype(np.uint8)
+            # Threshold: pixels above 140 become white (foreground)
+            binarized = (arr > 140).astype(np.uint8)
 
-        # Clear a 2-pixel margin around the entire binarized image to remove window frame borders (TASK-035)
-        binarized[:2, :] = 0
-        binarized[-2:, :] = 0
-        binarized[:, :2] = 0
-        binarized[:, -2:] = 0
+        # Clear a 1-pixel margin around the entire binarized image to preserve small digits
+        binarized[:1, :] = 0
+        binarized[-1:, :] = 0
+        binarized[:, :1] = 0
+        binarized[:, -1:] = 0
 
         # Segment characters vertically based on pixel projection with tolerance of 1 empty column
         col_sums = np.sum(binarized, axis=0)
@@ -189,14 +189,13 @@ class DigitRecognizer:
             best_score = -1.0
             
             ch_h, ch_w = char_crop.shape
-            if ch_h <= 2 or ch_w <= 0:
+            if ch_h <= 1 or ch_w <= 0:
                 continue
 
             for char_key, temp_arr in self.templates.items():
                 temp_h, temp_w = temp_arr.shape
                 
                 # Scale template or crop to match sizes for comparison
-                # We scale the template to match the segment size
                 from PIL import Image as PILImage
                 temp_img = PILImage.fromarray(temp_arr * 255)
                 temp_img_scaled = temp_img.resize((ch_w, ch_h), PILImage.Resampling.NEAREST)
@@ -211,14 +210,12 @@ class DigitRecognizer:
                     best_score = score
                     best_char = char_key
 
-            # Accept character classification if it matches sufficiently well (IoU >= 0.35)
-            if best_score > 0.35:
+            # Accept character classification if it matches sufficiently well (IoU >= 0.25)
+            if best_score > 0.25:
                 # Post-processing to distinguish similar characters (TASK-035)
-                # '8' and '0' look very similar scaled, but '8' has pixels in the middle row, '0' is empty.
                 if best_char in ('0', '8'):
                     mid_y = ch_h // 2
                     mid_row = char_crop[mid_y, :]
-                    # Sum middle row pixels (excluding borders)
                     if len(mid_row) > 2:
                         center_sum = np.sum(mid_row[1:-1])
                         if center_sum >= 1:
@@ -226,7 +223,6 @@ class DigitRecognizer:
                         else:
                             best_char = '0'
                     else:
-                        # Fallback to total density check
                         density = np.sum(char_crop) / (ch_h * ch_w)
                         if density > 0.6:
                             best_char = '8'
@@ -243,6 +239,17 @@ class DigitRecognizer:
         if not text:
             return 100, 100
 
+        # High priority check: If text ends in '%' or contains '%', extract all digits before it
+        if "%" in text:
+            try:
+                clean_text = text.split("%")[0]
+                digits = "".join([c for c in clean_text if c.isdigit()])
+                if digits:
+                    val = int(digits)
+                    return val, 100
+            except Exception:
+                pass
+
         if "/" in text:
             try:
                 parts = text.split("/")
@@ -257,7 +264,7 @@ class DigitRecognizer:
         if digits:
             try:
                 val = int(digits)
-                if "%" in text or val <= 100:
+                if val <= 100:
                     return val, 100
                 else:
                     # Fallback default
