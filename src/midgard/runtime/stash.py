@@ -20,6 +20,11 @@ class StashModule:
         self.restock_enabled = rules.get("stash.restock_enabled", "false").lower() == "true"
         self.merchant_x = int(rules.get("stash.merchant_x", "400"))
         self.merchant_y = int(rules.get("stash.merchant_y", "400"))
+
+        # NPC Selling rules (TASK-032)
+        self.sell_enabled = rules.get("stash.sell_enabled", "false").lower() == "true"
+        self.sell_npc_x = int(rules.get("stash.sell_npc_x", "500"))
+        self.sell_npc_y = int(rules.get("stash.sell_npc_y", "500"))
         
         # Color match coordinates for weight alert icon (e.g. balança laranja/vermelho)
         self.weight_check_x = int(rules.get("stash.weight_check_x", "600"))
@@ -84,6 +89,9 @@ class StashModule:
         # Cycle finished: clear weight block state
         self.is_banking = False
         
+        # Build composite log response based on restocking and selling triggers (TASK-032)
+        log_responses = []
+        
         # If restocking is enabled, trigger shop purchase movements after storage banking (TASK-028)
         restock_enabled = getattr(self, "restock_enabled", False)
         if restock_enabled:
@@ -95,6 +103,26 @@ class StashModule:
             # Purchase items line click
             self.input_adapter.move_mouse_relative(hwnd, self.merchant_x, self.merchant_y + 40)
             self.input_adapter.click_mouse("left")
-            return f"Kafra banking and merchant restocking completed. Restocked items at coordinates ({self.merchant_x}, {self.merchant_y})."
+            log_responses.append(f"Restocked items at NPC merchant ({self.merchant_x}, {self.merchant_y})")
+
+        # If selling is enabled, trigger NPC sell loops (TASK-032)
+        sell_enabled = getattr(self, "sell_enabled", False)
+        if sell_enabled:
+            # Move cursor to sell NPC merchant coordinates
+            time.sleep(0.5)
+            self.input_adapter.move_mouse_relative(hwnd, self.sell_npc_x, self.sell_npc_y)
+            self.input_adapter.click_mouse("left")
+            time.sleep(0.4)
+            # Click 'Sell items' option below
+            self.input_adapter.move_mouse_relative(hwnd, self.sell_npc_x, self.sell_npc_y + 40)
+            self.input_adapter.click_mouse("left")
+            time.sleep(0.4)
+            # Click inside trade window to confirm transaction
+            self.input_adapter.move_mouse_relative(hwnd, self.sell_npc_x + 50, self.sell_npc_y + 80)
+            self.input_adapter.click_mouse("left")
+            log_responses.append(f"Sold junk items at NPC store ({self.sell_npc_x}, {self.sell_npc_y})")
+
+        if log_responses:
+            return f"Kafra banking cycle completed. Action loops executed: {'; '.join(log_responses)}. Resuming farming."
 
         return f"Kafra banking cycle completed at coordinates ({self.kafra_x}, {self.kafra_y}). Resuming farming."

@@ -122,6 +122,10 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     profiles_page.stash_restock_enabled.setChecked(True)
     profiles_page.stash_merchant_x.setValue(380)
     profiles_page.stash_merchant_y.setValue(380)
+    
+    profiles_page.stash_sell_enabled.setChecked(True)
+    profiles_page.stash_sell_npc_x.setValue(520)
+    profiles_page.stash_sell_npc_y.setValue(540)
 
     # Save via GUI
     profiles_page._save_profile_rules()
@@ -211,6 +215,9 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     assert stash_rules.get("stash.restock_enabled") == "true"
     assert stash_rules.get("stash.merchant_x") == "380"
     assert stash_rules.get("stash.merchant_y") == "380"
+    assert stash_rules.get("stash.sell_enabled") == "true"
+    assert stash_rules.get("stash.sell_npc_x") == "520"
+    assert stash_rules.get("stash.sell_npc_y") == "540"
 
     # Close resources
     window.close()

@@ -77,7 +77,7 @@ def test_stash_merchant_restocking_cycle() -> None:
 
     # 2. Execute banking & restocking step
     res_bank = stash.evaluate(img, hwnd=123)
-    assert "restocking completed" in res_bank
+    assert "Restocked items" in res_bank
     assert stash.is_banking is False
     # Check that mouse was clicked on Kafra NPC and then on merchant coordinates
     assert mock_input.click_mouse.call_count == 4

@@ -249,6 +249,12 @@ not available at the time.
 - Added mouse hover vertical guide line tracking and text info bubbles details to the `StatisticsTrendChart` canvas.
 - Created `tests/test_polishments.py` and succeeded verification check with all 80 tests passing.
 
+## 2026-06-29 — TASK-032 NPC Merchant Store Sell Loop dialog automation
+
+- Implemented NPC store dialog interaction sell click sequences inside `StashModule` (`src/midgard/runtime/stash.py`).
+- Integrated NPC selling enabled toggle, target store coordinates, and click bounds configs inside the Stash GUI tab (`src/midgard/ui/pages.py`).
+- Created `tests/test_npc_selling.py` and succeeded verification check with all 81 tests passing.
+
 
 
 

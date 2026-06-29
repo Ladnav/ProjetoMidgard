@@ -1319,6 +1319,24 @@ class ProfilesPage(Page):
         merchant_coords.addWidget(self.stash_merchant_y)
         layout.addRow("Merchant NPC Coordinates", merchant_coords)
 
+        # NPC Selling row (TASK-032)
+        self.stash_sell_enabled = QCheckBox("Enable NPC Junk Item Selling")
+        self.stash_sell_npc_x = QSpinBox()
+        self.stash_sell_npc_x.setRange(0, 3000)
+        self.stash_sell_npc_x.setValue(500)
+        
+        self.stash_sell_npc_y = QSpinBox()
+        self.stash_sell_npc_y.setRange(0, 3000)
+        self.stash_sell_npc_y.setValue(500)
+
+        layout.addRow(self.stash_sell_enabled)
+        sell_coords = QHBoxLayout()
+        sell_coords.addWidget(QLabel("X:"))
+        sell_coords.addWidget(self.stash_sell_npc_x)
+        sell_coords.addWidget(QLabel("Y:"))
+        sell_coords.addWidget(self.stash_sell_npc_y)
+        layout.addRow("Sell NPC Store Coordinates", sell_coords)
+
         self.tab_widget.addTab(tab, "Stash")
 
     def _load_profile_rules(self) -> None:
@@ -1453,6 +1471,11 @@ class ProfilesPage(Page):
         self.stash_restock_enabled.setChecked(stash.get("stash.restock_enabled", "false").lower() == "true")
         self.stash_merchant_x.setValue(int(stash.get("stash.merchant_x", "400")))
         self.stash_merchant_y.setValue(int(stash.get("stash.merchant_y", "400")))
+
+        # Load selling rules (TASK-032)
+        self.stash_sell_enabled.setChecked(stash.get("stash.sell_enabled", "false").lower() == "true")
+        self.stash_sell_npc_x.setValue(int(stash.get("stash.sell_npc_x", "500")))
+        self.stash_sell_npc_y.setValue(int(stash.get("stash.sell_npc_y", "500")))
 
     def _save_profile_rules(self) -> None:
         """Persist rule configuration fields to the SQLite profile database."""
@@ -1764,6 +1787,17 @@ class ProfilesPage(Page):
             )
             self.profile_store.set_rule(
                 profile_id, "stash", "stash.merchant_y", str(self.stash_merchant_y.value())
+            )
+
+            # Save NPC Selling rules (TASK-032)
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.sell_enabled", str(self.stash_sell_enabled.isChecked()).lower()
+            )
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.sell_npc_x", str(self.stash_sell_npc_x.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "stash", "stash.sell_npc_y", str(self.stash_sell_npc_y.value())
             )
 
             QMessageBox.information(self, "Success", "Profile automation rules saved successfully.")
