@@ -1266,6 +1266,14 @@ class ProfilesPage(Page):
         file_actions_layout.addWidget(load_path_btn)
         layout.addLayout(file_actions_layout)
 
+        # Custom Script Loader Settings Row (TASK-034)
+        layout.addWidget(QLabel("<b>Custom Script Hot-Plugin Loader (.py)</b>"))
+        script_layout = QFormLayout()
+        self.nav_custom_script = QLineEdit()
+        self.nav_custom_script.setPlaceholderText("e.g. scripts/custom_anti_trap.py")
+        script_layout.addRow("Python Script Path", self.nav_custom_script)
+        layout.addLayout(script_layout)
+
         self.tab_widget.addTab(tab, "Navigation")
 
     def _init_security_tab(self) -> None:
@@ -1489,6 +1497,9 @@ class ProfilesPage(Page):
         self.nav_current_map.setText(nav.get("navigation.current_map", "prt_fild08"))
         self.nav_target_map.setText(nav.get("navigation.target_map", "prt_fild08"))
         self.nav_transitions_text.setPlainText(nav.get("navigation.transitions", ""))
+        
+        # Load custom script plugin settings (TASK-034)
+        self.nav_custom_script.setText(nav.get("navigation.custom_script", ""))
 
         # Load Security rules (TASK-025)
         sec = rules.get("security", {})
@@ -1780,6 +1791,14 @@ class ProfilesPage(Page):
                 "navigation",
                 "navigation.transitions",
                 self.nav_transitions_text.toPlainText().strip(),
+            )
+            
+            # Save custom script plugin settings (TASK-034)
+            self.profile_store.set_rule(
+                profile_id,
+                "navigation",
+                "navigation.custom_script",
+                self.nav_custom_script.text().strip(),
             )
 
             # Save Security rules (TASK-025)

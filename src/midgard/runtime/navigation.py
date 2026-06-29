@@ -43,6 +43,29 @@ class NavigationModule:
         self.stuck_timestamp = 0.0
         self.stuck_timeout = 5.0  # seconds until stuck recovery triggers
 
+        # Custom Script Plugin Loader (TASK-034)
+        self.custom_script_path = rules.get("navigation.custom_script", "")
+        self.custom_plugin_module = None
+        self._load_custom_script_plugin()
+
+    def _load_custom_script_plugin(self) -> None:
+        """Dynamically load and compile custom Python script plug-in from path."""
+        if not self.custom_script_path:
+            return
+        from pathlib import Path
+        import importlib.util
+        p = Path(self.custom_script_path)
+        if p.exists() and p.suffix.lower() == ".py":
+            try:
+                spec = importlib.util.spec_from_file_location("custom_plugin", str(p))
+                if spec and spec.loader:
+                    mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(mod)
+                    if hasattr(mod, "run_script"):
+                        self.custom_plugin_module = mod
+            except Exception:
+                pass
+
     def _parse_waypoints(self, raw_str: str) -> None:
         """Parse waypoint configuration string or JSON file path."""
         if not raw_str:
@@ -106,7 +129,20 @@ class NavigationModule:
 
     def evaluate(self, image: Image.Image) -> str | None:
         """Evaluate path progress and click next waypoint if arrival timer expired."""
-        if not self.enabled or not self.waypoints:
+        if not self.enabled:
+            return None
+
+        # Execute dynamic custom Python script plugin hook if compiled (TASK-034)
+        if self.custom_plugin_module is not None:
+            try:
+                # Custom scripts return log status messages or None
+                script_res = self.custom_plugin_module.run_script(image, self.input_adapter, self.hwnd)
+                if script_res:
+                    return f"Custom Script Executed: {script_res}"
+            except Exception as e:
+                return f"Custom Script Exception: {e}"
+
+        if not self.waypoints:
             return None
 
         now = time.time()

@@ -85,6 +85,7 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     profiles_page.nav_current_map.setText("prt_fild08")
     profiles_page.nav_target_map.setText("prt_fild05")
     profiles_page.nav_transitions_text.setPlainText("prt_fild08:prt_fild05:360:20:5.0")
+    profiles_page.nav_custom_script.setText("scripts/anti_trap.py")
     
     # Test path recorder GUI inputs (TASK-033)
     profiles_page.nav_record_x.setValue(450)
@@ -205,6 +206,7 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     assert navigation_rules.get("navigation.current_map") == "prt_fild08"
     assert navigation_rules.get("navigation.target_map") == "prt_fild05"
     assert navigation_rules.get("navigation.transitions") == "prt_fild08:prt_fild05:360:20:5.0"
+    assert navigation_rules.get("navigation.custom_script") == "scripts/anti_trap.py"
 
     security_rules = db_profile.rules.get("security", {})
     assert security_rules.get("security.enabled") == "true"

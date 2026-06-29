@@ -261,6 +261,12 @@ not available at the time.
 - Added path file load, save, and current client coordinates append button actions to the Navigation settings tab (`src/midgard/ui/pages.py`).
 - Created `tests/test_hunt_zones.py` and succeeded verification check with all 82 tests passing.
 
+## 2026-06-29 — TASK-034 Custom python script hot-plugins loader and compiler
+
+- Implemented dynamic script loading and execution hooks inside `NavigationModule` (`src/midgard/runtime/navigation.py`) using `importlib.util` module compilation spec methods.
+- Added custom script path selectors under Navigation settings tab rules (`src/midgard/ui/pages.py`).
+- Created `tests/test_custom_plugins.py` and succeeded verification check with all 83 tests passing.
+
 
 
 
