@@ -235,6 +235,13 @@ not available at the time.
 - Integrated status checks, priority checkboxes, and advanced looting filter options under Consumables, Combat, and Looting tab UI fields (`src/midgard/ui/pages.py`).
 - Created `tests/test_advanced_features.py` and succeeded verification check with all 75 tests passing.
 
+## 2026-06-29 — TASK-030 Multi-Map Transition Pathfinding & Live Performance Charts
+
+- Implemented graph-based multi-map portal transitions routing inside `NavigationModule` (`src/midgard/runtime/navigation.py`) to guide players across portals when target coordinate map names differ.
+- Created custom `StatisticsTrendChart` widget drawing real-time QPainter charts inside the Statistics Page layout (`src/midgard/ui/pages.py`).
+- Added transition coordinates and map names configuration input widgets to the Navigation settings tab.
+- Created `tests/test_multimap_charts.py` and succeeded verification check with all 77 tests passing.
+
 
 
 

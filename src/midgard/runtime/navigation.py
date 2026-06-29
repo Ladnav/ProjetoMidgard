@@ -28,6 +28,15 @@ class NavigationModule:
         self.last_move_time = 0.0
         self.current_wait_time = 0.0
 
+        # Multi-Map Transition Gates (TASK-030)
+        self.current_map = rules.get("navigation.current_map", "prt_fild08")
+        self.transition_enabled = rules.get("navigation.transition_enabled", "false").lower() == "true"
+        
+        # Transitions mapping: maps "from_map -> to_map" to (portal_x, portal_y, portal_wait_time)
+        self.map_transitions = {}
+        transitions_str = rules.get("navigation.transitions", "")
+        self._parse_transitions(transitions_str)
+
     def _parse_waypoints(self, raw_str: str) -> None:
         """Parse waypoint configuration string of format 'x,y,wait;x,y,wait'."""
         if not raw_str:
@@ -47,6 +56,27 @@ class NavigationModule:
                 except ValueError:
                     pass
 
+    def _parse_transitions(self, raw_str: str) -> None:
+        """Parse transitions string format 'from_map:to_map:x:y:wait;...'."""
+        if not raw_str:
+            return
+        segments = raw_str.split(";")
+        for seg in segments:
+            seg = seg.strip()
+            if not seg:
+                continue
+            parts = seg.split(":")
+            if len(parts) == 5:
+                try:
+                    from_m = parts[0].strip()
+                    to_m = parts[1].strip()
+                    px = int(parts[2])
+                    py = int(parts[3])
+                    wait = float(parts[4])
+                    self.map_transitions[f"{from_m}->{to_m}"] = (px, py, wait)
+                except ValueError:
+                    pass
+
     def evaluate(self, image: Image.Image) -> str | None:
         """Evaluate path progress and click next waypoint if arrival timer expired."""
         if not self.enabled or not self.waypoints:
@@ -59,6 +89,22 @@ class NavigationModule:
 
         # Execute A* step-by-step or direct walk action to current waypoint
         x, y, wait_time = self.waypoints[self.current_index]
+
+        # Multi-Map Transition Portal Interception (TASK-030)
+        target_map = self.rules.get("navigation.target_map", self.current_map)
+        if self.transition_enabled and target_map != self.current_map:
+            # Check if there is a mapped transition to get closer to target map
+            transition_key = f"{self.current_map}->{target_map}"
+            if transition_key in self.map_transitions:
+                tx, ty, t_wait = self.map_transitions[transition_key]
+                self.input_adapter.move_mouse_relative(self.hwnd, tx, ty)
+                time.sleep(random.uniform(0.05, 0.1))
+                self.input_adapter.click_mouse("left")
+                self.last_move_time = now
+                self.current_wait_time = t_wait
+                old_map = self.current_map
+                self.current_map = target_map  # updates state simulating map loading completed
+                return f"Multi-Map Transition: Traversed portal at ({tx}, {ty}) from {old_map} to {target_map}. Waiting {t_wait}s."
 
         # Dynamic pathfinding option
         grid_map = self.rules.get("navigation.grid_map")

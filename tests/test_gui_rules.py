@@ -81,6 +81,10 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
 
     profiles_page.nav_enabled.setChecked(True)
     profiles_page.nav_waypoints_text.setPlainText("150,150,2.5;300,300,5.0")
+    profiles_page.nav_transition_enabled.setChecked(True)
+    profiles_page.nav_current_map.setText("prt_fild08")
+    profiles_page.nav_target_map.setText("prt_fild05")
+    profiles_page.nav_transitions_text.setPlainText("prt_fild08:prt_fild05:360:20:5.0")
 
     # Edit Looting rules in UI
     profiles_page.loot_enabled.setChecked(True)
@@ -184,6 +188,10 @@ def test_profiles_gui_rules_loading_and_saving(tmp_path) -> None:
     navigation_rules = db_profile.rules.get("navigation", {})
     assert navigation_rules.get("navigation.enabled") == "true"
     assert navigation_rules.get("navigation.waypoints") == "150,150,2.5;300,300,5.0"
+    assert navigation_rules.get("navigation.transition_enabled") == "true"
+    assert navigation_rules.get("navigation.current_map") == "prt_fild08"
+    assert navigation_rules.get("navigation.target_map") == "prt_fild05"
+    assert navigation_rules.get("navigation.transitions") == "prt_fild08:prt_fild05:360:20:5.0"
 
     security_rules = db_profile.rules.get("security", {})
     assert security_rules.get("security.enabled") == "true"
