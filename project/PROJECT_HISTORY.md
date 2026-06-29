@@ -242,6 +242,13 @@ not available at the time.
 - Added transition coordinates and map names configuration input widgets to the Navigation settings tab.
 - Created `tests/test_multimap_charts.py` and succeeded verification check with all 77 tests passing.
 
+## 2026-06-29 — TASK-031 Humanization Curve, Navigation Stuck Recoveries, and Interactive Charts
+
+- Implemented Fitts' law velocity curve simulation sleep timings inside `move_mouse_relative` (`src/midgard/runtime/input.py`) accelerating cursor path speed dynamically.
+- Implemented stale target coordinates tracking inside `NavigationModule.evaluate` (`src/midgard/runtime/navigation.py`) triggers anti-stuck waypoint skips.
+- Added mouse hover vertical guide line tracking and text info bubbles details to the `StatisticsTrendChart` canvas.
+- Created `tests/test_polishments.py` and succeeded verification check with all 80 tests passing.
+
 
 
 

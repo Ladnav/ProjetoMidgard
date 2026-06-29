@@ -556,11 +556,21 @@ class StatisticsTrendChart(QWidget):
         self.setMinimumHeight(240)
         self.xp_data = [0]
         self.loot_data = [0]
+        self.hover_x = -1
+        self.setMouseTracking(True)  # Enable hover mouse movement tracking
 
     def set_data(self, xp_history: list[int], loot_history: list[int]) -> None:
         self.xp_data = xp_history if xp_history else [0]
         self.loot_data = loot_history if loot_history else [0]
         self.update()  # Request Qt canvas repaint event
+
+    def mouseMoveEvent(self, event) -> None:
+        self.hover_x = event.position().x()
+        self.update()
+
+    def leaveEvent(self, event) -> None:
+        self.hover_x = -1
+        self.update()
 
     def paintEvent(self, event) -> None:
         from PySide6.QtGui import QPainter, QPen, QColor, QFont
@@ -613,6 +623,30 @@ class StatisticsTrendChart(QWidget):
             cx = pad_l + int(chart_w * i / max(1, len(self.loot_data))) + bar_w // 2
             bar_h = int(chart_h * val / max_loot)
             painter.fillRect(cx, h - pad_b - bar_h, bar_w, bar_h, QColor(52, 152, 219))
+            
+        # Draw Interactive Hover Tooltip (TASK-031)
+        if self.hover_x >= pad_l and self.hover_x <= w - pad_r:
+            # Map hover_x to nearest index
+            total_elements = len(self.xp_data)
+            index = int(round((self.hover_x - pad_l) / chart_w * (total_elements - 1)))
+            index = max(0, min(index, total_elements - 1))
+            
+            # Retrieve values
+            curr_xp = self.xp_data[index]
+            curr_loot = self.loot_data[index]
+            target_x = pad_l + int(chart_w * index / max(1, total_elements - 1))
+            
+            # Draw vertical guide line
+            guide_pen = QPen(QColor(230, 126, 34), 1, Qt.PenStyle.SolidLine)
+            painter.setPen(guide_pen)
+            painter.drawLine(target_x, pad_t, target_x, h - pad_b)
+            
+            # Tooltip details bubble
+            painter.fillRect(target_x - 50, pad_t + 40, 110, 45, QColor(0, 0, 0, 200))
+            painter.setPen(QColor(255, 255, 255))
+            painter.setFont(QFont("Arial", 8))
+            painter.drawText(target_x - 45, pad_t + 55, f"XP: {curr_xp}")
+            painter.drawText(target_x - 45, pad_t + 70, f"Loot: {curr_loot} items")
             
         # Text annotations
         painter.setPen(QColor(255, 255, 255))

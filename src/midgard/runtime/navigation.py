@@ -37,6 +37,12 @@ class NavigationModule:
         transitions_str = rules.get("navigation.transitions", "")
         self._parse_transitions(transitions_str)
 
+        # Anti-Stuck Tracking (TASK-031)
+        self.last_target_x = -1
+        self.last_target_y = -1
+        self.stuck_timestamp = 0.0
+        self.stuck_timeout = 5.0  # seconds until stuck recovery triggers
+
     def _parse_waypoints(self, raw_str: str) -> None:
         """Parse waypoint configuration string of format 'x,y,wait;x,y,wait'."""
         if not raw_str:
@@ -89,6 +95,20 @@ class NavigationModule:
 
         # Execute A* step-by-step or direct walk action to current waypoint
         x, y, wait_time = self.waypoints[self.current_index]
+
+        # Stuck verification: Check if target waypoint coordinate matches the previous evaluated target (TASK-031)
+        if x == self.last_target_x and y == self.last_target_y:
+            if self.stuck_timestamp == 0.0:
+                self.stuck_timestamp = now
+            elif now - self.stuck_timestamp > self.stuck_timeout:
+                # Character stuck threshold exceeded. Trigger A* recovery or skip index
+                self.current_index = (self.current_index + 1) % len(self.waypoints)
+                self.stuck_timestamp = 0.0
+                return f"Navigation Stuck Recovery Triggered: Character coordinates staled for {self.stuck_timeout}s. Skipping to next waypoint."
+        else:
+            self.last_target_x = x
+            self.last_target_y = y
+            self.stuck_timestamp = 0.0
 
         # Multi-Map Transition Portal Interception (TASK-030)
         target_map = self.rules.get("navigation.target_map", self.current_map)

@@ -222,8 +222,9 @@ class Win32InputAdapter(BaseInputAdapter):
         # Generate smooth trajectory path
         path = generate_bezier_path(start_pos, end_pos, steps=10)
 
-        # Perform step-by-step movements along the curve
-        for pt_x, pt_y in path:
+        # Perform step-by-step movements along the curve (TASK-031 Fitts' Law)
+        total_steps = len(path)
+        for i, (pt_x, pt_y) in enumerate(path):
             dx = int((pt_x * 65535) / (width - 1)) if width > 1 else 0
             dy = int((pt_y * 65535) / (height - 1)) if height > 1 else 0
 
@@ -237,7 +238,16 @@ class Win32InputAdapter(BaseInputAdapter):
             )
             inp = INPUT(type=INPUT_MOUSE, ii=INPUT_UNION(mi=mi))
             ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(inp))
-            time.sleep(random.uniform(0.002, 0.005))
+            
+            # Sinusoidal sleep speed scaling: accelerate first half, decelerate second half (Fitts' Law)
+            t = (i + 1) / total_steps
+            import math
+            # Velocity peak is around middle (t=0.5 -> sleep time minimum), slow start (t=0 -> high sleep), slow end (t=1 -> high sleep)
+            speed_factor = math.sin(t * math.pi)  # ranges from 0 to 1
+            if speed_factor < 0.1:
+                speed_factor = 0.1
+            sleep_time = 0.001 + (0.009 * (1.0 - speed_factor))
+            time.sleep(random.uniform(sleep_time * 0.8, sleep_time * 1.2))
 
     def click_mouse(self, button: str = "left") -> None:
         """Trigger a mouse click (down then up) with a randomized human-like hold time."""
