@@ -130,8 +130,16 @@ class DigitRecognizer:
         if np.sum(arr) == 0:
             return ""
 
-        # Binarize using high threshold (Ragnarok status text is white on colored bars)
-        binarized = (arr > 160).astype(np.uint8)
+        # Determine if text is dark or light based on average background brightness
+        mean_val = np.mean(arr)
+        if mean_val > 127:
+            # Background is light, text is dark (e.g. black text on light background)
+            # Threshold: pixels below 100 become white (foreground)
+            binarized = (arr < 100).astype(np.uint8)
+        else:
+            # Background is dark, text is light (e.g. white text on dark background)
+            # Threshold: pixels above 160 become white (foreground)
+            binarized = (arr > 160).astype(np.uint8)
 
         # Clear borders that might contain frame edges
         binarized[0, :] = 0
