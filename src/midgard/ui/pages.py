@@ -1970,21 +1970,15 @@ class ProfilesPage(Page):
         sp_y2 = min(sp_y + sp_h, img_h)
         sp_crop = pil_img.crop((sp_x, sp_y, sp_x2, sp_y2))
 
-        # Parse through DigitRecognizer
-        from midgard.vision.ocr import DigitRecognizer
-        recognizer = DigitRecognizer()
+        # Parse through HSV pixel counter
+        from midgard.runtime.heal import calculate_bar_percentage
         
-        hp_text = recognizer.parse_image(hp_crop)
-        hp_cur, hp_max = recognizer.extract_percentage_or_values(hp_crop)
-        hp_pct = (hp_cur / hp_max * 100.0) if hp_max > 0 else 0.0
-
-        sp_text = recognizer.parse_image(sp_crop)
-        sp_cur, sp_max = recognizer.extract_percentage_or_values(sp_crop)
-        sp_pct = (sp_cur / sp_max * 100.0) if sp_max > 0 else 0.0
+        hp_pct = calculate_bar_percentage(hp_crop)
+        sp_pct = calculate_bar_percentage(sp_crop)
 
         # Construct visual modal dialog to display result
         dialog = QDialog(self)
-        dialog.setWindowTitle("Verify Crop & OCR Output")
+        dialog.setWindowTitle("Verify Crop & Bar Fill Output")
         dialog.setMinimumWidth(320)
         diag_layout = QVBoxLayout(dialog)
 
@@ -2001,20 +1995,20 @@ class ProfilesPage(Page):
             return scaled
 
         # HP visual block
-        hp_label = QLabel("<b>HP Crop Crop Area (Scaled x3):</b>")
+        hp_label = QLabel("<b>HP Crop Area (Scaled x3):</b>")
         hp_img_lbl = QLabel()
         hp_img_lbl.setPixmap(pil_to_pixmap(hp_crop))
-        hp_res_lbl = QLabel(f"OCR String: <b>'{hp_text}'</b> &rarr; Calculated: <b>{hp_cur}/{hp_max} ({hp_pct:.1f}%)</b>")
+        hp_res_lbl = QLabel(f"Calculated HP Fill: <b>{hp_pct:.1f}%</b>")
         
         diag_layout.addWidget(hp_label)
         diag_layout.addWidget(hp_img_lbl)
         diag_layout.addWidget(hp_res_lbl)
 
         # SP visual block
-        sp_label = QLabel("<br><b>SP Crop Crop Area (Scaled x3):</b>")
+        sp_label = QLabel("<br><b>SP Crop Area (Scaled x3):</b>")
         sp_img_lbl = QLabel()
         sp_img_lbl.setPixmap(pil_to_pixmap(sp_crop))
-        sp_res_lbl = QLabel(f"OCR String: <b>'{sp_text}'</b> &rarr; Calculated: <b>{sp_cur}/{sp_max} ({sp_pct:.1f}%)</b>")
+        sp_res_lbl = QLabel(f"Calculated SP Fill: <b>{sp_pct:.1f}%</b>")
 
         diag_layout.addWidget(sp_label)
         diag_layout.addWidget(sp_img_lbl)

@@ -1,5 +1,6 @@
 """Tests for Midgard Automation MVP components (Heal module and Input adapters)."""
 
+import numpy as np
 from PIL import Image
 
 from midgard.runtime.heal import HealModule
@@ -55,16 +56,17 @@ def test_heal_module_trigger_on_low_health() -> None:
     }
     module = HealModule(rules, adapter)
 
-    # 1. Healthy state (100% template matches 100% threshold)
-    img_healthy = Image.new("RGB", (10, 10), color=(255, 255, 255))
+    # 1. Healthy state (100% HP -> fully saturated green pixels)
+    img_healthy = Image.new("RGB", (60, 12), color=(0, 255, 0))
     result_healthy = module.evaluate(img_healthy)
     assert result_healthy is None
     assert len(adapter.history) == 0
 
-    # 2. Damaged/Low HP state (Black/empty returns 90% via OCR, triggering under 95% threshold)
-    img_damaged = Image.new("RGB", (24, 10), color=(255, 255, 255))
-    from unittest.mock import MagicMock
-    module.recognizer.extract_percentage_or_values = MagicMock(return_value=(90, 100))
+    # 2. Damaged/Low HP state (50% HP -> 30 green pixels, 30 gray pixels)
+    img_damaged = Image.new("RGB", (60, 12), color=(100, 100, 100))
+    arr = np.array(img_damaged)
+    arr[:, :30] = [0, 255, 0]  # Left half is green (saturated)
+    img_damaged = Image.fromarray(arr)
     
     result_damaged = module.evaluate(img_damaged)
     assert result_damaged is not None
@@ -83,18 +85,20 @@ def test_heal_module_respects_cooldown() -> None:
         "heal.enabled": "true",
         "heal.hp_x": "0",
         "heal.hp_y": "0",
-        "heal.hp_w": "24",
-        "heal.hp_h": "10",
+        "heal.hp_w": "60",
+        "heal.hp_h": "12",
         "heal.hp_threshold": "95.0",
         "heal.hp_key": "F1",
         "heal.min_cooldown": "5.0",  # Long cooldown
         "heal.max_cooldown": "5.0",
     }
     module = HealModule(rules, adapter)
-    img_damaged = Image.new("RGB", (24, 10), color=(255, 255, 255))
     
-    from unittest.mock import MagicMock
-    module.recognizer.extract_percentage_or_values = MagicMock(return_value=(90, 100))
+    # 50% HP image
+    img_damaged = Image.new("RGB", (60, 12), color=(100, 100, 100))
+    arr = np.array(img_damaged)
+    arr[:, :30] = [0, 255, 0]
+    img_damaged = Image.fromarray(arr)
 
     # First evaluation succeeds
     res1 = module.evaluate(img_damaged)

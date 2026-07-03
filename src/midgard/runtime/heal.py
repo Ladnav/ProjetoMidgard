@@ -1,21 +1,67 @@
-"""Heal Module for checking screen state and triggering healing keys."""
+"""Heal Module for checking screen status bar crops and triggering healing keys."""
 
 import random
 import time
-
+import numpy as np
 from PIL import Image
 
 from midgard.runtime.input import SCAN_CODES, BaseInputAdapter
-from midgard.vision.ocr import DigitRecognizer
+
+
+def calculate_bar_percentage(crop_img: Image.Image) -> float:
+    """Calculate the filled percentage of a status bar image using HSV color saturation.
+    
+    Tolerates short desaturated gaps (up to 6 pixels) to handle white/black overlaid text.
+    """
+    if crop_img.width <= 0 or crop_img.height <= 0:
+        return 100.0
+
+    # Convert to HSV to evaluate color saturation
+    hsv_img = crop_img.convert("HSV")
+    hsv_arr = np.array(hsv_img)
+    h, w, c = hsv_arr.shape
+    
+    # We read along the vertical center row of the crop
+    mid_y = h // 2
+    if mid_y >= h:
+        mid_y = h - 1
+
+    # Extract saturation channel of the middle row
+    # In HSV: channel 0 = Hue, channel 1 = Saturation, channel 2 = Value
+    s_row = hsv_arr[mid_y, :, 1]
+    
+    filled_w = 0
+    consecutive_empty = 0
+    
+    for x in range(w):
+        sat = s_row[x]
+        
+        # Saturated color (blue/green/red/yellow) represents the active bar.
+        # Desaturated gray/black/white represents empty background or overlaid text.
+        is_colored = sat > 40
+        
+        if is_colored:
+            filled_w = x + 1
+            consecutive_empty = 0
+        else:
+            consecutive_empty += 1
+            if consecutive_empty > 6:
+                break
+            filled_w = x + 1
+
+    # Subtract the empty suffix if we broke out of the loop
+    if consecutive_empty > 6:
+        filled_w = max(0, filled_w - consecutive_empty)
+
+    return (filled_w / w) * 100.0 if w > 0 else 100.0
 
 
 class HealModule:
-    """Monitors client area HP and SP status text segments using OCR to tap recovery hotkeys."""
+    """Monitors client area HP and SP status bars using color saturation to tap recovery hotkeys."""
 
     def __init__(self, rules: dict[str, str], input_adapter: BaseInputAdapter) -> None:
         self.rules = rules
         self.input_adapter = input_adapter
-        self.recognizer = DigitRecognizer()
         self._last_use_time = 0.0
 
         # Load Heal Enabled Status
@@ -43,7 +89,7 @@ class HealModule:
         self.sp_key = rules.get("heal.sp_key", "F2")
 
     def evaluate(self, image: Image.Image) -> str | None:
-        """Inspect crops for HP and SP texts, compute status percentages, and trigger keys."""
+        """Inspect crops for HP and SP color fill percentages, and trigger recovery keys."""
         if not self.enabled:
             return None
 
@@ -61,8 +107,7 @@ class HealModule:
             crop_y2 = min(self.hp_y + self.hp_h, height)
             hp_crop = image.crop((self.hp_x, self.hp_y, crop_x2, crop_y2))
 
-            current, maximum = self.recognizer.extract_percentage_or_values(hp_crop)
-            hp_pct = (current / maximum * 100.0) if maximum > 0 else 0.0
+            hp_pct = calculate_bar_percentage(hp_crop)
 
             if hp_pct < self.hp_threshold:
                 scan_code = SCAN_CODES.get(self.hp_key)
@@ -71,7 +116,7 @@ class HealModule:
                     self._last_use_time = now
                     return (
                         f"HP trigger triggered ({hp_pct:.1f}% under {self.hp_threshold}%). "
-                        f"Parsed values: {current}/{maximum}. Tapped {self.hp_key}."
+                        f"Tapped {self.hp_key}."
                     )
 
         # 2. EVALUATE SP (Only if SP checking is enabled)
@@ -81,8 +126,7 @@ class HealModule:
                 crop_y2 = min(self.sp_y + self.sp_h, height)
                 sp_crop = image.crop((self.sp_x, self.sp_y, crop_x2, crop_y2))
 
-                current, maximum = self.recognizer.extract_percentage_or_values(sp_crop)
-                sp_pct = (current / maximum * 100.0) if maximum > 0 else 0.0
+                sp_pct = calculate_bar_percentage(sp_crop)
 
                 if sp_pct < self.sp_threshold:
                     scan_code = SCAN_CODES.get(self.sp_key)
@@ -91,7 +135,7 @@ class HealModule:
                         self._last_use_time = now
                         return (
                             f"SP trigger triggered ({sp_pct:.1f}% under {self.sp_threshold}%). "
-                            f"Parsed values: {current}/{maximum}. Tapped {self.sp_key}."
+                            f"Tapped {self.sp_key}."
                         )
 
         return None
