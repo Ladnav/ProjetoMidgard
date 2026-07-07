@@ -52,6 +52,7 @@ class RuntimeEngine:
         # Stats
         self.xp_gained = 0
         self.loot_collected = 0
+        self._last_target_seen_time = time.time()
 
     def run(self) -> None:
         """Connect to Studio, register, load profile, and enter the main loop."""
@@ -266,11 +267,8 @@ class RuntimeEngine:
                         hy2 = min(hy + hh, height)
                         hp_crop = image.crop((hx, hy, hx2, hy2))
                         
-                        hp_cur, hp_max = self.heal_module.recognizer.extract_percentage_or_values(hp_crop)
-                        if hp_max > 0:
-                            hp_pct = int(hp_cur / hp_max * 100.0)
-                        else:
-                            hp_pct = 100
+                        from midgard.runtime.heal import calculate_bar_percentage
+                        hp_pct = int(calculate_bar_percentage(hp_crop))
                     except Exception:
                         hp_pct = 100
 
@@ -283,11 +281,8 @@ class RuntimeEngine:
                         sy2 = min(sy + sh, height)
                         sp_crop = image.crop((sx, sy, sx2, sy2))
                         
-                        sp_cur, sp_max = self.heal_module.recognizer.extract_percentage_or_values(sp_crop)
-                        if sp_max > 0:
-                            sp_pct = int(sp_cur / sp_max * 100.0)
-                        else:
-                            sp_pct = 100
+                        from midgard.runtime.heal import calculate_bar_percentage
+                        sp_pct = int(calculate_bar_percentage(sp_crop))
                     except Exception:
                         sp_pct = 100
 
@@ -461,7 +456,37 @@ class RuntimeEngine:
                             },
                         )
 
-                # Only navigate if no healing, evasion, consumables, or combat action triggered
+                # Reset target seen timer if a target is found in combat module
+                if self.combat_module and self.combat_module.enabled:
+                    if self.combat_module.find_target(image) is not None:
+                        self._last_target_seen_time = time.time()
+
+                # Idle Teleportation Check (TASK-035)
+                if not triggered_action and self.navigation_module and self.navigation_module.enabled:
+                    teleport_on_idle = self.navigation_module.rules.get("navigation.teleport_on_idle", "false").lower() == "true"
+                    if teleport_on_idle:
+                        idle_limit = float(self.navigation_module.rules.get("navigation.idle_limit", "7.0"))
+                        if time.time() - self._last_target_seen_time >= idle_limit:
+                            import random
+                            teleport_key = self.navigation_module.rules.get("navigation.teleport_key", "F4")
+                            from midgard.runtime.input import SCAN_CODES
+                            scan_code = SCAN_CODES.get(teleport_key)
+                            if scan_code:
+                                self.input_adapter.tap_key(scan_code)
+                                # Short delay after teleporting to let client load
+                                time.sleep(random.uniform(0.3, 0.6))
+                                self._last_target_seen_time = time.time()
+                                triggered_action = True
+                                send_message(
+                                    self._sock,
+                                    {
+                                        "type": "log",
+                                        "message": f"No monsters seen for {idle_limit}s. Tapped teleport hotkey {teleport_key}.",
+                                        "level": "INFO",
+                                    },
+                                )
+
+                # Only navigate if no healing, evasion, consumables, combat, or teleport action triggered
                 if not triggered_action and self.navigation_module:
                     nav_log = self.navigation_module.evaluate(image)
                     if nav_log:

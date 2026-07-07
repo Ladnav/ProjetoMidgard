@@ -33,8 +33,14 @@ class CombatModule:
         self.min_cooldown = float(rules.get("combat.min_cooldown", "1.0"))
         self.max_cooldown = float(rules.get("combat.max_cooldown", "2.0"))
 
+        # Skill usage rules
+        self.use_skill = rules.get("combat.use_skill", "false").lower() == "true"
+        self.skill_key = rules.get("combat.skill_key", "F5")
+        self.skill_cooldown = float(rules.get("combat.skill_cooldown", "1.0"))
+        self._last_skill_time = 0.0
+
     def evaluate(self, image: Image.Image) -> str | None:
-        """Evaluate screen state, find target, and click to attack."""
+        """Evaluate screen state, find target, and click or cast skill to attack."""
         if not self.enabled:
             return None
 
@@ -46,10 +52,24 @@ class CombatModule:
         target_coords = self.find_target(image)
         if target_coords:
             tx, ty = target_coords
-            # Move mouse and click target
+            # Move mouse relative to target coordinates
             self.input_adapter.move_mouse_relative(self.hwnd, tx, ty)
-            # Short sleep to let the mouse arrive before click (50ms - 100ms)
+            # Short sleep to let the mouse arrive before action (50ms - 100ms)
             time.sleep(random.uniform(0.05, 0.1))
+
+            # Cast combat skill if enabled and off cooldown
+            if self.use_skill and (now - self._last_skill_time >= self.skill_cooldown):
+                from midgard.runtime.input import SCAN_CODES
+                scan_code = SCAN_CODES.get(self.skill_key)
+                if scan_code:
+                    self.input_adapter.tap_key(scan_code)
+                    time.sleep(random.uniform(0.03, 0.07))
+                    self.input_adapter.click_mouse("left")
+                    self._last_skill_time = now
+                    self._last_attack_time = now
+                    return f"Cast skill {self.skill_key} on target at ({tx}, {ty})."
+
+            # Fallback to basic physical attack
             self.input_adapter.click_mouse("left")
             self._last_attack_time = now
             return f"Found combat target at ({tx}, {ty}). Clicked left button."

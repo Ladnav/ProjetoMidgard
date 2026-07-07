@@ -3,7 +3,7 @@
 from PIL import Image
 
 from midgard.runtime.combat import CombatModule
-from midgard.runtime.input import DummyInputAdapter
+from midgard.runtime.input import SCAN_CODES, DummyInputAdapter
 
 
 def test_dummy_input_adapter_mouse_tracking() -> None:
@@ -120,3 +120,37 @@ def test_combat_module_cooldown() -> None:
     # Second evaluation immediately after fails due to cooldown
     res2 = module.evaluate(img)
     assert res2 is None
+
+
+def test_combat_module_casts_skill() -> None:
+    """CombatModule taps skill hotkey and clicks target if use_skill is enabled."""
+    adapter = DummyInputAdapter()
+    rules = {
+        "combat.enabled": "true",
+        "combat.target_r": "255",
+        "combat.target_g": "0",
+        "combat.target_b": "0",
+        "combat.color_tolerance": "10",
+        "combat.step_x": "1",
+        "combat.step_y": "1",
+        "combat.min_hits": "1",
+        "combat.min_cooldown": "0.0",
+        "combat.max_cooldown": "0.0",
+        "combat.use_skill": "true",
+        "combat.skill_key": "F5",
+        "combat.skill_cooldown": "0.0",
+    }
+    module = CombatModule(rules, adapter, hwnd=987)
+
+    img = Image.new("RGB", (5, 5), color=(255, 0, 0))
+
+    log_msg = module.evaluate(img)
+    assert log_msg is not None
+    assert "Cast skill F5" in log_msg
+
+    # Verify input actions: move_mouse, press_key (tap), click_mouse
+    assert len(adapter.history) == 4
+    assert adapter.history[0] == ("move_mouse", (2, 2))  # Centroid of 5x5 red image is (2,2)
+    assert adapter.history[1] == ("press", SCAN_CODES["F5"])
+    assert adapter.history[2] == ("release", SCAN_CODES["F5"])
+    assert adapter.history[3] == ("click_mouse", "left")
