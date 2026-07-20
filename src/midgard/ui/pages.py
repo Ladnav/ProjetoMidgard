@@ -1,6 +1,7 @@
+import time
 from pathlib import Path
-from PIL import Image
 
+from PIL import Image
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
@@ -10,10 +11,12 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QSizePolicy,
     QSpinBox,
@@ -182,6 +185,9 @@ class RuntimeWorker(QThread):
 class RuntimePage(Page):
     """Runtime page that controls character automation engine loops."""
 
+    #: Telemetry arrives ~20x/second; persist and chart at most one sample/second.
+    SAMPLE_INTERVAL_SECONDS = 1.0
+
     def __init__(self, profile_store: ProfileStore) -> None:
         super().__init__(
             "Runtime",
@@ -193,6 +199,7 @@ class RuntimePage(Page):
         self.profile_store = profile_store
         self.launcher: RuntimeLauncher | None = None
         self.worker: RuntimeWorker | None = None
+        self._last_sample_time = 0.0
 
         # 1. Profile selector layout
         selector_layout = QHBoxLayout()
@@ -218,20 +225,32 @@ class RuntimePage(Page):
         controls_layout.addWidget(self.stop_btn)
         self.card_layout.addLayout(controls_layout)
 
-        # 3. Telemetry card layout
-        telemetry_frame = QFrame()
-        telemetry_frame.setObjectName("contentCard")
-        tele_layout = QHBoxLayout(telemetry_frame)
-        self.status_lbl = QLabel("Status: Idle")
-        self.xp_lbl = QLabel("XP Gained: 0")
-        self.loot_lbl = QLabel("Loot: 0")
-        self.hp_lbl = QLabel("HP: --%")
+        # 3. Telemetry cards
+        tele_layout = QHBoxLayout()
+        tele_layout.setSpacing(10)
+        self.status_card = StatCard("Status", "Idle")
+        self.xp_card = StatCard("XP Gained", "0")
+        self.loot_card = StatCard("Loot", "0")
+        self.hp_card = StatCard("HP", "--%")
 
-        tele_layout.addWidget(self.status_lbl)
-        tele_layout.addWidget(self.xp_lbl)
-        tele_layout.addWidget(self.loot_lbl)
-        tele_layout.addWidget(self.hp_lbl)
-        self.card_layout.addWidget(telemetry_frame)
+        # Health bar lives inside the HP card, under its numeric value.
+        self.hp_bar = QProgressBar()
+        self.hp_bar.setObjectName("hpBar")
+        self.hp_bar.setRange(0, 100)
+        self.hp_bar.setValue(0)
+        self.hp_bar.setTextVisible(False)
+        self.hp_card.layout().addWidget(self.hp_bar)
+
+        for card in (self.status_card, self.xp_card, self.loot_card, self.hp_card):
+            tele_layout.addWidget(card, 1)
+        self.card_layout.addLayout(tele_layout)
+
+        # Backwards-compatible aliases: existing callers and tests address these
+        # labels directly, so keep them pointing at the card value labels.
+        self.status_lbl = self.status_card.value_label
+        self.xp_lbl = self.xp_card.value_label
+        self.loot_lbl = self.loot_card.value_label
+        self.hp_lbl = self.hp_card.value_label
 
         # 4. Live performance trend chart (fed by real telemetry samples)
         self.live_chart = StatisticsTrendChart()
@@ -240,16 +259,9 @@ class RuntimePage(Page):
         # 5. Live log terminal styling
         self.terminal = QTextEdit()
         self.terminal.setReadOnly(True)
-        # Apply premium monospaced dark terminal style
-        self.terminal.setStyleSheet(
-            "background-color: #0b0f19;"
-            "color: #10b981;"
-            "font-family: 'Consolas', 'Courier New', monospace;"
-            "font-size: 11pt;"
-            "border: 1px solid #1e293b;"
-            "border-radius: 4px;"
-            "padding: 8px;"
-        )
+        # Styled through the theme stylesheet so the console follows light/dark
+        # instead of being pinned to one hardcoded palette.
+        self.terminal.setObjectName("console")
         self.terminal.setMinimumHeight(240)
         self.card_layout.addWidget(self.terminal)
 
@@ -296,9 +308,17 @@ class RuntimePage(Page):
             self.stop_btn.setEnabled(True)
             self.profile_combo.setEnabled(False)
 
-            self.status_lbl.setText("Status: Starting...")
+            self.status_card.set_value("Starting...")
             self.terminal.clear()
             self.live_chart.reset_live()
+            self._last_sample_time = 0.0
+            # The engine restarts its XP/loot counters from zero each run, so
+            # keeping the previous session's samples would render a meaningless
+            # sawtooth. Start the recorded series fresh for this session.
+            try:
+                self.profile_store.clear_stat_samples(profile_id)
+            except Exception:
+                pass
             self.terminal.append(">>> Starting Runtime launcher process...")
 
             # Start worker thread
@@ -318,11 +338,11 @@ class RuntimePage(Page):
             if self.pause_btn.text() == "Pause":
                 self.launcher.send_command("pause")
                 self.pause_btn.setText("Resume")
-                self.status_lbl.setText("Status: Paused")
+                self.status_card.set_value("Paused")
             else:
                 self.launcher.send_command("start")
                 self.pause_btn.setText("Pause")
-                self.status_lbl.setText("Status: Running")
+                self.status_card.set_value("Running")
 
     def _stop_runtime(self) -> None:
         """Gracefully request engine stop and process termination."""
@@ -336,7 +356,7 @@ class RuntimePage(Page):
         if "registration" in message.lower() or "connected" in message.lower():
             if self.launcher:
                 self.launcher.send_command("start")
-                self.status_lbl.setText("Status: Running")
+                self.status_card.set_value("Running")
 
         prefix = f"[{level}] " if level else ""
         self.terminal.append(f"{prefix}{message}")
@@ -346,9 +366,29 @@ class RuntimePage(Page):
         xp = status.get("xp_gained", 0)
         loot = status.get("loot_collected", 0)
 
-        self.hp_lbl.setText(f"HP: {hp}%")
-        self.xp_lbl.setText(f"XP Gained: {xp}")
-        self.loot_lbl.setText(f"Loot: {loot}")
+        hp_value = max(0, min(100, int(hp)))
+        self.hp_card.set_value(f"{hp}%", alert=hp_value < 30)
+        self.xp_card.set_value(f"{xp:,}")
+        self.loot_card.set_value(f"{loot:,}")
+
+        self.hp_bar.setValue(hp_value)
+        # Drive the bar colour through a dynamic property so the palette stays in
+        # the theme stylesheet instead of hardcoded widget-level colours.
+        level = "low" if hp_value < 30 else ("mid" if hp_value < 60 else "ok")
+        if self.hp_bar.property("level") != level:
+            self.hp_bar.setProperty("level", level)
+            self.hp_bar.style().unpolish(self.hp_bar)
+            self.hp_bar.style().polish(self.hp_bar)
+
+        # The engine emits status roughly 20x per second. Sampling the chart and
+        # the database at that rate would store ~72k rows per hour and reduce the
+        # live chart to a few seconds of history, so throttle the persistence to
+        # one sample per second while the labels keep updating in real time.
+        now = time.monotonic()
+        if now - self._last_sample_time < self.SAMPLE_INTERVAL_SECONDS:
+            return
+        elapsed = now - self._last_sample_time if self._last_sample_time else 0.0
+        self._last_sample_time = now
 
         # Feed the live trend chart with the real telemetry point.
         self.live_chart.append_sample(xp, loot)
@@ -357,21 +397,22 @@ class RuntimePage(Page):
         profile_id = self.profile_combo.currentData()
         if profile_id is not None:
             try:
-                # Assume 1 second elapsed per telemetry update tick
                 profile = self.profile_store.get_profile(profile_id)
                 deaths = profile.stats.deaths if (profile and profile.stats) else 0
-                r_sec = (
-                    (profile.stats.runtime_seconds + 1.0) if (profile and profile.stats) else 1.0
+                previous_runtime = (
+                    profile.stats.runtime_seconds if (profile and profile.stats) else 0.0
                 )
+                # Accumulate the real elapsed wall time. The previous code added a
+                # flat 1.0 per telemetry message, which overstated runtime ~20x.
                 self.profile_store.update_stats(
                     profile_id=profile_id,
                     experience_gained=xp,
                     deaths=deaths,
                     loot_count=loot,
-                    runtime_seconds=r_sec,
+                    runtime_seconds=previous_runtime + elapsed,
                 )
                 # Record a time-series sample so the Statistics page can render a
-                # real historical trend across the whole session.
+                # real historical trend across the session.
                 self.profile_store.add_stat_sample(
                     profile_id=profile_id,
                     experience_gained=xp,
@@ -381,13 +422,8 @@ class RuntimePage(Page):
             except Exception:
                 pass
 
-        if hp < 30:
-            self.hp_lbl.setStyleSheet("color: #ef4444; font-weight: bold;")
-        else:
-            self.hp_lbl.setStyleSheet("")
-
     def _on_worker_finished(self) -> None:
-        self.status_lbl.setText("Status: Stopped")
+        self.status_card.set_value("Stopped")
         self.start_btn.setEnabled(True)
         self.pause_btn.setEnabled(False)
         self.pause_btn.setText("Pause")
@@ -410,9 +446,8 @@ class RuntimePage(Page):
         self.terminal.append(alarm_html)
 
         # Flash the status label red
-        self.status_lbl.setStyleSheet("color: #ef4444; font-weight: bold;")
         if alarm_type == "death":
-            self.status_lbl.setText("Status: 💀 CHARACTER DEATH DETECTED")
+            self.status_card.set_value("Death detected", alert=True)
             # Update death count in SQLite
             profile_id = self.profile_combo.currentData()
             if profile_id is not None:
@@ -429,9 +464,9 @@ class RuntimePage(Page):
                 except Exception:
                     pass
         elif alarm_type == "disconnect":
-            self.status_lbl.setText("Status: ⚡ CLIENT DISCONNECTED")
+            self.status_card.set_value("Disconnected", alert=True)
         elif alarm_type == "template_match":
-            self.status_lbl.setText("Status: 👁️ VISUAL STATE DETECTED")
+            self.status_card.set_value("Visual state", alert=True)
 
     def _cleanup_launcher(self) -> None:
         """Clean up the worker thread and terminate launcher process."""
@@ -496,15 +531,8 @@ class LogsPage(Page):
         # 5. Log text browser
         self.log_viewer = QTextEdit()
         self.log_viewer.setReadOnly(True)
-        self.log_viewer.setStyleSheet(
-            "background-color: #0b0f19;"
-            "color: #cbd5e1;"
-            "font-family: 'Consolas', 'Courier New', monospace;"
-            "font-size: 10pt;"
-            "border: 1px solid #1e293b;"
-            "border-radius: 4px;"
-            "padding: 8px;"
-        )
+        # Theme-driven console styling (see theme.stylesheet).
+        self.log_viewer.setObjectName("console")
         self.log_viewer.setMinimumHeight(350)
         self.card_layout.addWidget(self.log_viewer)
 
@@ -564,6 +592,45 @@ class LogsPage(Page):
                 QMessageBox.critical(self, "Error", f"Failed to clear log file")
 
 
+def _format_duration(seconds: float) -> str:
+    """Render a duration compactly, e.g. '45s', '12m 30s', '3h 05m'."""
+    total = int(max(0, seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m"
+    if minutes:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
+
+
+class StatCard(QFrame):
+    """Compact metric tile showing a large value above a small caption."""
+
+    def __init__(self, caption: str, value: str = "--") -> None:
+        super().__init__()
+        self.setObjectName("statCard")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(2)
+
+        self.value_label = QLabel(value)
+        self.value_label.setObjectName("statValue")
+        self.caption_label = QLabel(caption.upper())
+        self.caption_label.setObjectName("statCaption")
+
+        layout.addWidget(self.value_label)
+        layout.addWidget(self.caption_label)
+
+    def set_value(self, value: str, alert: bool = False) -> None:
+        """Update the displayed value, optionally styling it as an alert."""
+        self.value_label.setText(value)
+        self.value_label.setObjectName("statValueAlert" if alert else "statValue")
+        # Re-polish so the freshly assigned object name picks up the stylesheet.
+        self.value_label.style().unpolish(self.value_label)
+        self.value_label.style().polish(self.value_label)
+
+
 class StatisticsTrendChart(QWidget):
     """Custom-painted chart of XP gains (line) and loot collected (bars) over time.
 
@@ -572,7 +639,8 @@ class StatisticsTrendChart(QWidget):
     """
 
     #: Maximum number of samples retained for the live buffer.
-    MAX_POINTS = 240
+    #: At the Runtime page's one-sample-per-second throttle this is ~10 minutes.
+    MAX_POINTS = 600
 
     def __init__(self) -> None:
         super().__init__()
@@ -580,21 +648,27 @@ class StatisticsTrendChart(QWidget):
         self.xp_data = [0]
         self.loot_data = [0]
         self.hover_x = -1
+        # Tracks whether the series still holds the initial placeholder point.
+        # Comparing the data itself would misfire for a session that legitimately
+        # starts at zero, silently discarding the opening samples.
+        self._awaiting_first_sample = True
         self.setMouseTracking(True)  # Enable hover mouse movement tracking
 
     def set_data(self, xp_history: list[int], loot_history: list[int]) -> None:
         """Replace the full series (used by the historical Statistics view)."""
         self.xp_data = list(xp_history) if xp_history else [0]
         self.loot_data = list(loot_history) if loot_history else [0]
+        self._awaiting_first_sample = False
         self.update()  # Request Qt canvas repaint event
 
     def append_sample(self, xp: int, loot: int) -> None:
         """Append one live telemetry point, trimming to ``MAX_POINTS``."""
         # A fresh live session starts from the placeholder [0]; drop it once real
         # data arrives so the trend does not begin with a spurious flat segment.
-        if self.xp_data == [0] and self.loot_data == [0]:
+        if self._awaiting_first_sample:
             self.xp_data = []
             self.loot_data = []
+            self._awaiting_first_sample = False
         self.xp_data.append(int(xp))
         self.loot_data.append(int(loot))
         if len(self.xp_data) > self.MAX_POINTS:
@@ -607,6 +681,7 @@ class StatisticsTrendChart(QWidget):
         self.xp_data = [0]
         self.loot_data = [0]
         self.hover_x = -1
+        self._awaiting_first_sample = True
         self.update()
 
     def mouseMoveEvent(self, event) -> None:
@@ -813,23 +888,22 @@ class StatisticsPage(Page):
         selector_layout.addWidget(self.profile_combo, 1)
         self.card_layout.addLayout(selector_layout)
 
-        # 2. Stats summary cards layout
+        # 2. Stats summary cards laid out as a responsive grid of metric tiles
         self.stats_layout = QVBoxLayout()
         self.stats_layout.setSpacing(12)
 
-        self.xp_card = QLabel("XP Accumulated: --")
-        self.xp_card.setStyleSheet("font-size: 11pt; padding: 4px;")
-        self.loot_card = QLabel("Total Loot Collected: --")
-        self.loot_card.setStyleSheet("font-size: 11pt; padding: 4px;")
-        self.deaths_card = QLabel("Character Deaths: --")
-        self.deaths_card.setStyleSheet("font-size: 11pt; padding: 4px;")
-        self.time_card = QLabel("Runtime: -- minutes")
-        self.time_card.setStyleSheet("font-size: 11pt; padding: 4px;")
+        self.xp_card = StatCard("XP Accumulated")
+        self.loot_card = StatCard("Loot Collected")
+        self.deaths_card = StatCard("Deaths")
+        self.time_card = StatCard("Runtime")
 
-        self.stats_layout.addWidget(self.xp_card)
-        self.stats_layout.addWidget(self.loot_card)
-        self.stats_layout.addWidget(self.deaths_card)
-        self.stats_layout.addWidget(self.time_card)
+        cards_grid = QGridLayout()
+        cards_grid.setSpacing(10)
+        cards_grid.addWidget(self.xp_card, 0, 0)
+        cards_grid.addWidget(self.loot_card, 0, 1)
+        cards_grid.addWidget(self.deaths_card, 1, 0)
+        cards_grid.addWidget(self.time_card, 1, 1)
+        self.stats_layout.addLayout(cards_grid)
 
         # Add Live Performance Trend Chart widget (TASK-030)
         self.trend_chart = StatisticsTrendChart()
@@ -857,21 +931,18 @@ class StatisticsPage(Page):
         """Fetch stats for selected profile and update UI labels."""
         profile_id = self.profile_combo.currentData()
         if profile_id is None:
-            self.xp_card.setText("XP Accumulated: --")
-            self.loot_card.setText("Total Loot Collected: --")
-            self.deaths_card.setText("Character Deaths: --")
-            self.time_card.setText("Runtime: -- minutes")
+            for card in (self.xp_card, self.loot_card, self.deaths_card, self.time_card):
+                card.set_value("--")
             self.trend_chart.set_data([0], [0])
             return
 
         profile = self.profile_store.get_profile(profile_id)
         if profile and profile.stats:
             stats = profile.stats
-            runtime_mins = round(stats.runtime_seconds / 60.0, 1)
-            self.xp_card.setText(f"XP Accumulated: {stats.experience_gained} XP")
-            self.loot_card.setText(f"Total Loot Collected: {stats.loot_count} items")
-            self.deaths_card.setText(f"Character Deaths: {stats.deaths} deaths")
-            self.time_card.setText(f"Runtime: {runtime_mins} minutes")
+            self.xp_card.set_value(f"{stats.experience_gained:,}")
+            self.loot_card.set_value(f"{stats.loot_count:,}")
+            self.deaths_card.set_value(f"{stats.deaths:,}", alert=stats.deaths > 0)
+            self.time_card.set_value(_format_duration(stats.runtime_seconds))
 
             # Load the real recorded time series; fall back to a simple
             # start -> current cumulative pair when no samples exist yet.

@@ -78,9 +78,10 @@ def test_statistics_page_displays_profile_stats(tmp_path) -> None:
     page._load_statistics()
     app.processEvents()
 
-    assert "5000 XP" in page.xp_card.text()
-    assert "120 items" in page.loot_card.text()
-    assert "2 deaths" in page.deaths_card.text()
-    assert "10.0 minutes" in page.time_card.text()
+    # Metric tiles show the bare value; the caption names the metric.
+    assert page.xp_card.value_label.text() == "5,000"
+    assert page.loot_card.value_label.text() == "120"
+    assert page.deaths_card.value_label.text() == "2"
+    assert page.time_card.value_label.text() == "10m 00s"
 
     window.close()

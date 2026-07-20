@@ -86,6 +86,30 @@ def test_statistics_trend_chart_live_append_and_reset() -> None:
     assert chart.loot_data == [0]
 
 
+def test_live_chart_keeps_leading_zero_samples() -> None:
+    """A session that legitimately starts at zero must not discard its samples.
+
+    Regression test: the placeholder was detected by comparing the data to [0],
+    so every zero-valued sample re-triggered the reset and the opening flat
+    period of a run was silently thrown away.
+    """
+    from PySide6.QtWidgets import QApplication
+    import sys
+
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    chart = StatisticsTrendChart()
+    chart.append_sample(0, 0)
+    chart.append_sample(0, 0)
+    chart.append_sample(0, 0)
+    chart.append_sample(150, 3)
+
+    assert chart.xp_data == [0, 0, 0, 150]
+    assert chart.loot_data == [0, 0, 0, 3]
+
+
 def test_statistics_trend_chart_value_formatting() -> None:
     """Compact numeric formatting for axis and tooltip labels."""
     assert StatisticsTrendChart._format_value(500) == "500"

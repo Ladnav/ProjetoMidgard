@@ -28,10 +28,24 @@ released remain under **Unreleased** until a version is intentionally published.
 - The desktop-capture fallback preference is cached instead of opening a SQLite connection
   on every runtime tick.
 
+- Metric tiles (`StatCard`) on the Runtime and Statistics pages, a colour-coded HP progress
+  bar, and theme-aware console styling for the runtime terminal and the log viewer.
+
 ### Fixed
 
 - Experience was never counted: `xp_gained` was initialised and reported but never
   incremented, so every XP figure was permanently zero.
+- Runtime telemetry arrives ~20x/second, which caused three defects: the database grew by
+  roughly 72k sample rows per hour, the live chart held only ~12 seconds of history, and
+  `runtime_seconds` (which added a flat 1.0 per message) overstated session duration by
+  about 20x. Sampling is now throttled to once per second and runtime accumulates real
+  elapsed wall time.
+- The live chart discarded its opening samples whenever a session legitimately started at
+  zero, because the placeholder was detected by comparing the series to `[0]`.
+- Recorded samples from previous sessions are cleared when a run starts, since the engine
+  restarts its counters from zero and mixing sessions produced a meaningless sawtooth.
+- The runtime terminal and log viewer had hardcoded dark colours that were unreadable under
+  the light theme.
 - Auto-looting clicked empty ground whenever more than one item label was visible, because
   it averaged every matching pixel on screen into a single centroid. Matches are now grouped
   into distinct labels and the closest one is clicked.

@@ -57,9 +57,11 @@ def test_runtime_gui_page_integration(tmp_path) -> None:
         status_data = {"type": "status", "hp_pct": 78, "xp_gained": 120, "loot_collected": 5}
         runtime_page._on_status_received(status_data)
         app.processEvents()
-        assert "HP: 78%" in runtime_page.hp_lbl.text()
-        assert "XP Gained: 120" in runtime_page.xp_lbl.text()
-        assert "Loot: 5" in runtime_page.loot_lbl.text()
+        # Values now live in metric cards, captioned separately from the number.
+        assert "78%" in runtime_page.hp_card.value_label.text()
+        assert "120" in runtime_page.xp_card.value_label.text()
+        assert "5" in runtime_page.loot_card.value_label.text()
+        assert runtime_page.hp_bar.value() == 78
 
         # Toggle pause state
         runtime_page._pause_runtime()

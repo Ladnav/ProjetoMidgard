@@ -127,6 +127,56 @@ def stylesheet(theme: Theme) -> str:
             color: {colors["text"]};
             padding: 5px;
         }}
+        QFrame#statCard {{
+            background-color: {colors["surface"]};
+            border: 1px solid {colors["border"]};
+            border-radius: 10px;
+        }}
+        QLabel#statValue {{
+            color: {colors["text"]};
+            font-size: 23px;
+            font-weight: 700;
+        }}
+        QLabel#statCaption {{
+            color: {colors["muted"]};
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }}
+        QLabel#statValueAlert {{
+            color: {colors["danger"]};
+            font-size: 23px;
+            font-weight: 700;
+        }}
+        QTextEdit#console {{
+            background-color: {colors["console"]};
+            color: {colors["console_text"]};
+            border: 1px solid {colors["border"]};
+            border-radius: 8px;
+            font-family: "Cascadia Mono", "Consolas", "Courier New", monospace;
+            font-size: 12px;
+            padding: 8px;
+        }}
+        QProgressBar#hpBar {{
+            background-color: {colors["input"]};
+            border: 1px solid {colors["border"]};
+            border-radius: 7px;
+            color: {colors["text"]};
+            font-size: 11px;
+            font-weight: 600;
+            text-align: center;
+            max-height: 14px;
+        }}
+        QProgressBar#hpBar::chunk {{
+            background-color: {colors["accent"]};
+            border-radius: 6px;
+        }}
+        QProgressBar#hpBar[level="low"]::chunk {{
+            background-color: {colors["danger"]};
+        }}
+        QProgressBar#hpBar[level="mid"]::chunk {{
+            background-color: {colors["warning"]};
+        }}
     """
 
 
@@ -142,6 +192,10 @@ _COLORS = {
         "accent": "#58d2b0",
         "hover": "#192436",
         "selection": "#183d3b",
+        "danger": "#f2635f",
+        "warning": "#e0a33a",
+        "console": "#080d16",
+        "console_text": "#5fe0a8",
     },
     Theme.LIGHT: {
         "background": "#f3f6f9",
@@ -154,5 +208,9 @@ _COLORS = {
         "accent": "#087f6b",
         "hover": "#f0f4f6",
         "selection": "#dff3ed",
+        "danger": "#c0392b",
+        "warning": "#a8710f",
+        "console": "#1b2330",
+        "console_text": "#7fe3b4",
     },
 }
