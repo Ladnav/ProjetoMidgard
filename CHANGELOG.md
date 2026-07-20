@@ -30,6 +30,9 @@ released remain under **Unreleased** until a version is intentionally published.
 
 - Metric tiles (`StatCard`) on the Runtime and Statistics pages, a colour-coded HP progress
   bar, and theme-aware console styling for the runtime terminal and the log viewer.
+- Operational Dashboard replacing the placeholder page: aggregate XP/loot/deaths/runtime
+  totals across all profiles plus a per-profile overview of which automation modules are
+  configured on.
 
 ### Fixed
 

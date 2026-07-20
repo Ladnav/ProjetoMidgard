@@ -377,8 +377,7 @@ class RuntimePage(Page):
         level = "low" if hp_value < 30 else ("mid" if hp_value < 60 else "ok")
         if self.hp_bar.property("level") != level:
             self.hp_bar.setProperty("level", level)
-            self.hp_bar.style().unpolish(self.hp_bar)
-            self.hp_bar.style().polish(self.hp_bar)
+            _repolish(self.hp_bar)
 
         # The engine emits status roughly 20x per second. Sampling the chart and
         # the database at that rate would store ~72k rows per hour and reduce the
@@ -592,6 +591,22 @@ class LogsPage(Page):
                 QMessageBox.critical(self, "Error", f"Failed to clear log file")
 
 
+def _format_compact(value: float) -> str:
+    """Compact numeric formatting: 1500 -> '1.5k', 2_000_000 -> '2.0M'."""
+    abs_v = abs(value)
+    if abs_v >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    if abs_v >= 1_000:
+        return f"{value / 1_000:.1f}k"
+    return f"{int(value)}"
+
+
+def _repolish(widget) -> None:
+    """Re-apply the stylesheet after a widget's object name or property changed."""
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+
+
 def _format_duration(seconds: float) -> str:
     """Render a duration compactly, e.g. '45s', '12m 30s', '3h 05m'."""
     total = int(max(0, seconds))
@@ -627,8 +642,7 @@ class StatCard(QFrame):
         self.value_label.setText(value)
         self.value_label.setObjectName("statValueAlert" if alert else "statValue")
         # Re-polish so the freshly assigned object name picks up the stylesheet.
-        self.value_label.style().unpolish(self.value_label)
-        self.value_label.style().polish(self.value_label)
+        _repolish(self.value_label)
 
 
 class StatisticsTrendChart(QWidget):
@@ -695,12 +709,7 @@ class StatisticsTrendChart(QWidget):
     @staticmethod
     def _format_value(value: float) -> str:
         """Compact axis/tooltip formatting: 1500 -> '1.5k', 2_000_000 -> '2.0M'."""
-        abs_v = abs(value)
-        if abs_v >= 1_000_000:
-            return f"{value / 1_000_000:.1f}M"
-        if abs_v >= 1_000:
-            return f"{value / 1_000:.1f}k"
-        return f"{int(value)}"
+        return _format_compact(value)
 
     def _theme_palette(self) -> dict:
         """Return chart colours matching the active application theme."""
@@ -957,6 +966,138 @@ class StatisticsPage(Page):
                 xp_history = [0]
                 loot_history = [0]
             self.trend_chart.set_data(xp_history, loot_history)
+
+
+class DashboardPage(Page):
+    """Operational overview aggregating real data across every character profile."""
+
+    # Automation modules and the (rule category, enabled key) that activates each.
+    MODULES = [
+        ("Healing", "healing", "heal.enabled"),
+        ("Experience", "experience", "experience.enabled"),
+        ("Looting", "looting", "loot.enabled"),
+        ("Combat", "combat", "combat.enabled"),
+        ("Navigation", "navigation", "navigation.enabled"),
+        ("Consumables", "consumables", "consumables.enabled"),
+        ("Stash", "stash", "stash.enabled"),
+        ("Security", "security", "security.enabled"),
+    ]
+
+    def __init__(self, profile_store: ProfileStore) -> None:
+        super().__init__(
+            "Dashboard",
+            "Operational overview of your Midgard Studio profiles.",
+            "Aggregate Statistics",
+            "Combined totals across every character profile stored locally.",
+            card_eyebrow="OVERVIEW",
+        )
+        self.profile_store = profile_store
+
+        # Aggregate metric tiles (all profiles combined).
+        self.profiles_card = StatCard("Profiles")
+        self.xp_card = StatCard("Total XP")
+        self.loot_card = StatCard("Total Loot")
+        self.deaths_card = StatCard("Total Deaths")
+        self.runtime_card = StatCard("Total Runtime")
+
+        grid = QGridLayout()
+        grid.setSpacing(10)
+        for col, card in enumerate(
+            (self.profiles_card, self.xp_card, self.loot_card, self.deaths_card, self.runtime_card)
+        ):
+            grid.addWidget(card, 0, col)
+        self.card_layout.addLayout(grid)
+
+        # Per-profile module-configuration overview.
+        overview_card = QFrame()
+        overview_card.setObjectName("contentCard")
+        overview_layout = QVBoxLayout(overview_card)
+        overview_layout.setContentsMargins(20, 18, 20, 18)
+        overview_layout.setSpacing(10)
+
+        header = QLabel("Profiles & Configured Modules")
+        header.setObjectName("cardTitle")
+        overview_layout.addWidget(header)
+
+        self.profiles_container = QVBoxLayout()
+        self.profiles_container.setSpacing(10)
+        overview_layout.addLayout(self.profiles_container)
+
+        self._empty_label = QLabel(
+            "No profiles yet. Create one on the Profiles page to get started."
+        )
+        self._empty_label.setObjectName("cardBody")
+        self._empty_label.setWordWrap(True)
+        overview_layout.addWidget(self._empty_label)
+
+        # Insert the overview card just above the trailing stretch of the page.
+        layout = self.layout()
+        layout.insertWidget(layout.count() - 1, overview_card)
+
+        self._refresh()
+
+    def showEvent(self, event) -> None:
+        """Refresh aggregate data whenever the dashboard is shown."""
+        super().showEvent(event)
+        self._refresh()
+
+    def _clear_profiles_container(self) -> None:
+        while self.profiles_container.count():
+            item = self.profiles_container.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _build_profile_row(self, profile) -> QFrame:
+        """One row: profile name/class plus a chip per configured module."""
+        row = QFrame()
+        row.setObjectName("statCard")
+        row_layout = QVBoxLayout(row)
+        row_layout.setContentsMargins(14, 10, 14, 10)
+        row_layout.setSpacing(6)
+
+        title = QLabel(f"{profile.name}  ·  {profile.character_class}")
+        title.setObjectName("sectionTitle")
+        row_layout.addWidget(title)
+
+        modules_row = QHBoxLayout()
+        modules_row.setSpacing(14)
+        any_on = False
+        for label, category, enabled_key in self.MODULES:
+            enabled = profile.rules.get(category, {}).get(enabled_key, "false").lower() == "true"
+            any_on = any_on or enabled
+            chip = QLabel(f"{'●' if enabled else '○'} {label}")
+            chip.setObjectName("moduleOn" if enabled else "moduleOff")
+            modules_row.addWidget(chip)
+        modules_row.addStretch(1)
+        row_layout.addLayout(modules_row)
+
+        if not any_on:
+            hint = QLabel("No automation modules enabled for this profile.")
+            hint.setObjectName("moduleOff")
+            row_layout.addWidget(hint)
+
+        return row
+
+    def _refresh(self) -> None:
+        """Recompute aggregates and rebuild the per-profile overview."""
+        profiles = self.profile_store.list_profiles()
+
+        total_xp = sum(p.stats.experience_gained for p in profiles)
+        total_loot = sum(p.stats.loot_count for p in profiles)
+        total_deaths = sum(p.stats.deaths for p in profiles)
+        total_runtime = sum(p.stats.runtime_seconds for p in profiles)
+
+        self.profiles_card.set_value(str(len(profiles)))
+        self.xp_card.set_value(_format_compact(total_xp))
+        self.loot_card.set_value(_format_compact(total_loot))
+        self.deaths_card.set_value(str(total_deaths), alert=total_deaths > 0)
+        self.runtime_card.set_value(_format_duration(total_runtime))
+
+        self._clear_profiles_container()
+        self._empty_label.setVisible(not profiles)
+        for profile in profiles:
+            self.profiles_container.addWidget(self._build_profile_row(profile))
 
 
 class AboutPage(Page):

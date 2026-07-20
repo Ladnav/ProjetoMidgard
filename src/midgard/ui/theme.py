@@ -177,6 +177,20 @@ def stylesheet(theme: Theme) -> str:
         QProgressBar#hpBar[level="mid"]::chunk {{
             background-color: {colors["warning"]};
         }}
+        QLabel#sectionTitle {{
+            color: {colors["text"]};
+            font-size: 13px;
+            font-weight: 700;
+        }}
+        QLabel#moduleOn {{
+            color: {colors["accent"]};
+            font-size: 12px;
+            font-weight: 600;
+        }}
+        QLabel#moduleOff {{
+            color: {colors["muted"]};
+            font-size: 12px;
+        }}
     """
 
 
