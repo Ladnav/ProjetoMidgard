@@ -36,7 +36,25 @@ only: none are designed or implemented in the current foundation.
 
 ## Current scope boundary
 
-The current application is a graphical shell only. It specifically excludes game automation (beyond the basic Heal trigger), combat target selection, map navigation pathfinding, computer vision object detection (like YOLO), OCR text reading, plugin loaders, and AI features. The page named Runtime is an empty navigation destination and does not authorize or implement runtime logic. (Note: Window capture, Win32 keyboard emulation, and pixel-based Heal monitoring are implemented in the library/engine foundation, but active gameplay loop automation remains excluded.)
+The application has grown well past the original graphical shell. As delivered on `main` (through
+TASK-035) and extended on 2026-07-20, it implements a full multi-process automation runtime: window
+capture (GDI), Win32 input emulation, pixel/OCR HP-SP monitoring and healing, combat target
+selection (colour, OpenCV template matching, hover validation), A* and multi-map navigation with a
+custom-script plugin loader, auto-looting, consumables/buffs, auto-stash and NPC selling, Discord
+notifications, an OCR experience tracker, and anti-detection input behaviours. The Runtime page
+controls live sessions; the Dashboard aggregates real per-profile data; Statistics render a real
+persisted telemetry time series.
+
+This boundary was previously stated as "graphical shell only, automation excluded." That text
+described the intended TASK-002 milestone and was never updated as tasks 003–035 shipped, so it
+contradicted the code and the project history. It was corrected on 2026-07-20 with Product Owner
+approval. What remains genuinely **not** implemented: machine-learning behaviour, memory reading,
+cloud sync, a plugin marketplace, and automatic updates (see the roadmap's deferred features).
+
+Note on process: several of these capabilities — computer vision, OCR, and anti-detection in
+particular — were listed as DEFERRED in the external Engineering Decisions and were implemented
+ahead of a formal per-feature Decision record. Retroactively formalising those decisions is an open
+item below.
 
 ## Repository principles
 
@@ -49,12 +67,14 @@ The current application is a graphical shell only. It specifically excludes game
 
 ## Open decisions
 
-- Supported desktop operating systems
-- Application packaging and distribution format
-- Domain module boundaries beyond the current application foundation
-- SQLite schema migration strategy beyond the initial settings table
+- Supported desktop operating systems (the runtime is currently Windows-only due to GDI/Win32)
+- Application packaging and distribution format (a PyInstaller build exists; no release process)
+- SQLite schema migration strategy beyond additive `CREATE TABLE IF NOT EXISTS` tables
 - Method for delivering built-in documentation in the application
 - Release process, initial release date, and tagging procedure
 - Formal copyright ownership beyond the current contributor notice
+- Whether to retroactively record the already-implemented computer-vision, OCR, and
+  anti-detection capabilities as formal approved Engineering Decisions (they were built while the
+  external spec still marked them DEFERRED)
 
 These decisions are intentionally deferred. Future tasks must not infer answers without approval.

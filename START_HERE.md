@@ -5,10 +5,17 @@ and documentation is maintained as part of the product.
 
 ## Current phase
 
-Project Midgard now has its first executable graphical foundation: Midgard Studio 0.2.0. The
-desktop shell provides navigation, theme persistence, logging, and version information. It does
-not provide automation, gameplay runtime, computer vision, OCR, input control, a rule engine,
-plugins, or AI features.
+Midgard Studio is a working desktop automation platform. Beyond the shell (navigation, theme
+persistence, logging, version info) it provides a multi-process automation runtime with window
+capture, Win32 input, healing, combat, navigation, looting, consumables, stash/selling,
+notifications, computer-vision template matching, OCR (HP/SP and experience), a custom-script
+plugin loader, and anti-detection input behaviours — configured per character profile through the
+UI and monitored via the Dashboard, Runtime, and Statistics pages.
+
+Earlier revisions of this file and of some `project/` documents described Midgard as a shell "with
+no automation." That described the original TASK-002 milestone and was corrected on 2026-07-20 once
+it no longer matched the delivered code. Machine learning, memory reading, cloud sync, a plugin
+marketplace, and automatic updates remain out of scope.
 
 ## Read in this order
 

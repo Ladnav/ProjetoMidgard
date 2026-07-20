@@ -275,6 +275,19 @@ not available at the time.
 - Updated window injection names to use character profile names instead of search query strings (`src/midgard/ui/pages.py`).
 - Fixed 64-bit ctypes handles truncation bugs by explicitly declaring user32/gdi32 prototypes (`src/midgard/vision/capture.py`).
 
+## 2026-07-20 — Telemetry, runtime bug fixes, and operational Dashboard/UI
+
+- Added a persisted per-profile telemetry time series (`profile_stat_samples` table with `add_stat_sample`/`get_stat_samples`/`clear_stat_samples`) and reworked `StatisticsTrendChart` (`src/midgard/ui/pages.py`) to be theme-aware, label the axes, align bars to the line, clamp the hover tooltip, and render an explicit empty state, driving both a live Runtime chart and the historical Statistics view from real data.
+- Fixed three defects that made core features silently ineffective: experience was reported but never incremented (added an OCR `ExperienceTracker` in `src/midgard/runtime/experience.py` plus a configurable Experience tab); auto-looting averaged every matching pixel into one centroid and clicked empty ground when multiple labels were visible (now clusters matches and clicks the nearest label); and `find_hwnd_by_pid` (`src/midgard/vision/capture.py`) bound to the first visible process window (now the largest client area). Added rate-limited window re-binding after a client restart.
+- Corrected a telemetry-rate assumption: the engine emits status ~20x/second, which inflated `runtime_seconds` ~20x, grew the sample table by ~72k rows/hour, and limited the live chart to ~12s. Sampling and persistence are now throttled to 1/second and runtime accumulates real elapsed wall time.
+- Reworked the Runtime and Statistics UI with reusable `StatCard` metric tiles, a colour-coded HP progress bar, and theme-aware console styling for the terminal and log viewer (both previously had hardcoded dark colours unreadable in light theme). Replaced the empty Dashboard placeholder with an operational `DashboardPage` showing aggregate totals and per-profile configured-module status, entirely from real SQLite data.
+- Verified 126 tests passing under Python 3.14.5; Ruff clean on the changed files. Delivered on branch `feature/statistics-trend-chart-real-telemetry` (PR #1).
+
+## 2026-07-20 — Documentation reconciliation
+
+- Product Owner (Leonardo) authorized aligning the project-memory documents with the delivered code. `PROJECT_HISTORY.md` and `CURRENT_STATE.md` already reflected the implemented automation, but `PROJECT_CONTEXT.md`, `AI_MEMORY.md`, `NEXT_TASK.md`, and `START_HERE.md` still described the project as a graphical shell with automation prohibited. Updated those documents so the repository is internally consistent: automation modules through TASK-035 plus the 2026-07-20 telemetry/UI work are recorded as delivered rather than excluded.
+- Left unresolved (pending Product Owner direction): whether the previously implemented anti-detection features should be recorded as formal approved Engineering Decisions, and the next planned task.
+
 
 
 
