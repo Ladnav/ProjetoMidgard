@@ -952,6 +952,7 @@ class ProfilesPage(Page):
         self._init_healing_tab()
         self._init_consumables_tab()
         self._init_looting_tab()
+        self._init_experience_tab()
         self._init_combat_tab()
         self._init_navigation_tab()
         self._init_security_tab()
@@ -1220,6 +1221,64 @@ class ProfilesPage(Page):
         layout.addRow("Rare Tolerance", self.loot_rare_tolerance)
 
         self.tab_widget.addTab(tab, "Looting")
+
+    def _init_experience_tab(self) -> None:
+        tab = QWidget()
+        layout = QFormLayout(tab)
+
+        self.exp_enabled = QCheckBox("Enable Experience Tracking (OCR)")
+
+        self.exp_x = QSpinBox()
+        self.exp_x.setRange(0, 10000)
+        self.exp_y = QSpinBox()
+        self.exp_y.setRange(0, 10000)
+        self.exp_w = QSpinBox()
+        self.exp_w.setRange(1, 10000)
+        self.exp_w.setValue(120)
+        self.exp_h = QSpinBox()
+        self.exp_h.setRange(1, 10000)
+        self.exp_h.setValue(16)
+
+        self.exp_interval = QDoubleSpinBox()
+        self.exp_interval.setRange(0.2, 60.0)
+        self.exp_interval.setValue(2.0)
+        self.exp_interval.setSingleStep(0.5)
+
+        self.exp_max_delta = QSpinBox()
+        self.exp_max_delta.setRange(0, 100_000_000)
+        self.exp_max_delta.setValue(0)
+
+        layout.addRow(self.exp_enabled)
+        layout.addRow(
+            QLabel(
+                "Select the on-screen region showing the numeric EXP value.\n"
+                "The tracker reads it periodically and accumulates the increases."
+            )
+        )
+
+        region_layout = QHBoxLayout()
+        region_layout.addWidget(QLabel("X:"))
+        region_layout.addWidget(self.exp_x)
+        region_layout.addWidget(QLabel("Y:"))
+        region_layout.addWidget(self.exp_y)
+        region_layout.addWidget(QLabel("W:"))
+        region_layout.addWidget(self.exp_w)
+        region_layout.addWidget(QLabel("H:"))
+        region_layout.addWidget(self.exp_h)
+
+        self.exp_pick_btn = QPushButton("Select EXP Region")
+        self.exp_pick_btn.clicked.connect(self._pick_experience_region)
+        region_layout.addWidget(self.exp_pick_btn)
+
+        layout.addRow("EXP Region", region_layout)
+        layout.addRow("Sample Interval (s)", self.exp_interval)
+        layout.addRow("Max Gain per Sample (0 = no limit)", self.exp_max_delta)
+
+        self.exp_verify_btn = QPushButton("Verify EXP Reading")
+        self.exp_verify_btn.clicked.connect(self._verify_experience_region)
+        layout.addRow(self.exp_verify_btn)
+
+        self.tab_widget.addTab(tab, "Experience")
 
     def _init_combat_tab(self) -> None:
         tab = QWidget()
@@ -1587,6 +1646,15 @@ class ProfilesPage(Page):
         self.status_color_b.setValue(int(cons.get("consumables.status_color_b", "255")))
 
         # Load Looting rules
+        exp = rules.get("experience", {})
+        self.exp_enabled.setChecked(exp.get("experience.enabled", "false").lower() == "true")
+        self.exp_x.setValue(int(exp.get("experience.x", "0")))
+        self.exp_y.setValue(int(exp.get("experience.y", "0")))
+        self.exp_w.setValue(int(exp.get("experience.w", "120")))
+        self.exp_h.setValue(int(exp.get("experience.h", "16")))
+        self.exp_interval.setValue(float(exp.get("experience.interval", "2.0")))
+        self.exp_max_delta.setValue(int(exp.get("experience.max_delta", "0")))
+
         loot = rules.get("looting", {})
         self.loot_enabled.setChecked(loot.get("loot.enabled", "false").lower() == "true")
         self.loot_color_r.setValue(int(loot.get("loot.color.r", "220")))
@@ -1798,6 +1866,30 @@ class ProfilesPage(Page):
             )
 
             # Save Looting rules
+            self.profile_store.set_rule(
+                profile_id,
+                "experience",
+                "experience.enabled",
+                str(self.exp_enabled.isChecked()).lower(),
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.x", str(self.exp_x.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.y", str(self.exp_y.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.w", str(self.exp_w.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.h", str(self.exp_h.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.interval", str(self.exp_interval.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.max_delta", str(self.exp_max_delta.value())
+            )
             self.profile_store.set_rule(
                 profile_id, "looting", "loot.enabled", str(self.loot_enabled.isChecked()).lower()
             )
@@ -2084,6 +2176,60 @@ class ProfilesPage(Page):
                     self.heal_sp_w.setValue(dialog.selected_w)
                     self.heal_sp_h.setValue(dialog.selected_h)
 
+    @staticmethod
+    def _pixmap_to_pil(pixmap) -> Image.Image:
+        """Convert a captured QPixmap into a PIL image for the vision helpers."""
+        qimg = pixmap.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+        img_bytes = qimg.constBits().tobytes()
+        return Image.frombytes("RGBA", (qimg.width(), qimg.height()), img_bytes)
+
+    def _pick_experience_region(self) -> None:
+        """Capture the EXP counter bounding box coordinates and size."""
+        pixmap = self._capture_game_window()
+        if pixmap is None:
+            return
+        dialog = PickDialog(pixmap, self)
+        if dialog.exec() == QDialog.Accepted:
+            if dialog.selected_x is not None:
+                self.exp_x.setValue(dialog.selected_x)
+                self.exp_y.setValue(dialog.selected_y)
+                if dialog.selected_w is not None and dialog.selected_w > 0:
+                    self.exp_w.setValue(dialog.selected_w)
+                    self.exp_h.setValue(dialog.selected_h)
+
+    def _verify_experience_region(self) -> None:
+        """Read the configured EXP region once and report what OCR resolved."""
+        pixmap = self._capture_game_window()
+        if pixmap is None:
+            return
+        try:
+            from midgard.runtime.experience import ExperienceTracker
+
+            image = self._pixmap_to_pil(pixmap)
+            tracker = ExperienceTracker(
+                {
+                    "experience.enabled": "true",
+                    "experience.x": str(self.exp_x.value()),
+                    "experience.y": str(self.exp_y.value()),
+                    "experience.w": str(self.exp_w.value()),
+                    "experience.h": str(self.exp_h.value()),
+                }
+            )
+            value = tracker.read_value(image)
+        except Exception as exc:
+            QMessageBox.critical(self, "Verify EXP", f"Failed to read region: {exc}")
+            return
+
+        if value is None:
+            QMessageBox.warning(
+                self,
+                "Verify EXP",
+                "No number could be read from the selected region.\n"
+                "Adjust the region so it tightly frames the EXP digits.",
+            )
+        else:
+            QMessageBox.information(self, "Verify EXP", f"OCR resolved the value: {value}")
+
     def _verify_healing_crops(self) -> None:
         """Capture the current frame, crop HP/SP bounding boxes, parse them with OCR, and show visual dialog."""
         pixmap = self._capture_game_window()
@@ -2091,14 +2237,8 @@ class ProfilesPage(Page):
             return
 
         # Convert QPixmap to PIL image
-        qimg = pixmap.toImage()
-        qimg = qimg.convertToFormat(QImage.Format.Format_RGBA8888)
-        img_w, img_h = qimg.width(), qimg.height()
-        
-        # Read raw image pointer bytes using PySide memory buffer parsing
-        ptr = qimg.constBits()
-        img_bytes = ptr.tobytes()
-        pil_img = Image.frombytes("RGBA", (img_w, img_h), img_bytes)
+        pil_img = self._pixmap_to_pil(pixmap)
+        img_w, img_h = pil_img.size
 
         # 1. HP Crop Processing
         hp_x, hp_y = self.heal_hp_x.value(), self.heal_hp_y.value()

@@ -169,8 +169,13 @@ def list_windows_by_title_with_pid(title_substring: str) -> list[tuple[int, int,
 
 
 def find_hwnd_by_pid(target_pid: int) -> int | None:
-    """Find the top-level window handle (HWND) belonging to a specific Process ID (PID)."""
-    found_hwnds = []
+    """Find the main top-level window handle (HWND) belonging to a Process ID.
+
+    A process commonly owns several visible top-level windows (splash screens,
+    tooltips, IME helpers). Returning the first match can therefore bind the bot
+    to a tiny auxiliary window, so the largest client area wins instead.
+    """
+    candidates: list[tuple[int, int]] = []  # (client area, hwnd)
     wnd_enum_proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
 
     def callback(hwnd: int, extra: int) -> bool:
@@ -178,13 +183,18 @@ def find_hwnd_by_pid(target_pid: int) -> int | None:
             pid = ctypes.c_ulong()
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
             if pid.value == target_pid:
-                found_hwnds.append(hwnd)
-                return False
+                rect = RECT()
+                area = 0
+                if user32.GetClientRect(hwnd, ctypes.byref(rect)):
+                    area = max(0, rect.right - rect.left) * max(0, rect.bottom - rect.top)
+                candidates.append((area, hwnd))
         return True
 
     enum_proc = wnd_enum_proc(callback)
     user32.EnumWindows(enum_proc, 0)
-    return found_hwnds[0] if found_hwnds else None
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: item[0])[1]
 
 
 def rename_window(hwnd: int, new_title: str) -> bool:

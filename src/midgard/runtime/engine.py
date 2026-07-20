@@ -11,6 +11,7 @@ from midgard.profile import ProfileStore
 from midgard.runtime.combat import CombatModule
 from midgard.runtime.consumables import ConsumablesModule
 from midgard.runtime.evasion import EvasionModule
+from midgard.runtime.experience import ExperienceTracker
 from midgard.runtime.heal import HealModule
 from midgard.runtime.input import DummyInputAdapter, Win32InputAdapter
 from midgard.runtime.navigation import NavigationModule
@@ -45,9 +46,24 @@ class RuntimeEngine:
         self.navigation_module: NavigationModule | None = None
         self.consumables_module: ConsumablesModule | None = None
         self.evasion_module: EvasionModule | None = None
+        self.loot_module = None
+        self.anomaly_module = None
+        self.stash_module = None
+        self.discord_notifier = None
+        self.experience_tracker: ExperienceTracker | None = None
         self.template_detector = TemplateDetector()
         self.detector_rules: dict[str, str] = {}
         self.capture_failures = 0
+
+        # Window binding, kept so the engine can re-attach if the client restarts.
+        self.window_title: str | None = None
+        self.profile_name: str | None = None
+        self._last_rebind_attempt = 0.0
+
+        # Cached desktop-fallback preference; re-read periodically instead of
+        # opening a SQLite connection on every tick.
+        self._desktop_fallback = False
+        self._settings_checked_at = 0.0
 
         # Stats
         self.xp_gained = 0
@@ -104,6 +120,10 @@ class RuntimeEngine:
                 from midgard.runtime.discord import DiscordNotifier
                 self.discord_notifier = DiscordNotifier(security_rules)
 
+                # Initialize experience tracking rules dict
+                experience_rules = profile.rules.get("experience", {})
+                self.experience_tracker = ExperienceTracker(experience_rules)
+
                 # Initialize combat rules dict
                 combat_rules = profile.rules.get("combat", {})
 
@@ -112,6 +132,11 @@ class RuntimeEngine:
 
                 # Initialize detector rules dict
                 self.detector_rules = profile.rules.get("detector", {})
+
+                # Retain the binding identifiers so the engine can re-attach later
+                # if the game client window is closed and reopened.
+                self.window_title = profile.window_title
+                self.profile_name = profile.name
 
                 # Find and initialize WindowCaptureService if window_title is set
                 try:
@@ -239,6 +264,75 @@ class RuntimeEngine:
                     },
                 )
 
+    def _rebind_window(self) -> bool:
+        """Try to re-attach to the game window after the handle became invalid.
+
+        Returns True when a new capture service was established. Attempts are
+        rate limited so a permanently closed client does not spin the loop.
+        """
+        now = time.time()
+        if now - self._last_rebind_attempt < 3.0:
+            return False
+        self._last_rebind_attempt = now
+
+        for candidate in (self.window_title, self.profile_name):
+            if not candidate:
+                continue
+            try:
+                self.capture_service = WindowCaptureService.from_title(candidate)
+            except ValueError:
+                continue
+
+            # Re-point the dependent modules at the fresh handle.
+            hwnd = self.capture_service.hwnd
+            if hasattr(self.input_adapter, "set_hwnd"):
+                self.input_adapter.set_hwnd(hwnd)
+            if self.combat_module:
+                self.combat_module.hwnd = hwnd
+            if self.navigation_module:
+                self.navigation_module.hwnd = hwnd
+
+            self.capture_failures = 0
+            try:
+                send_message(
+                    self._sock,
+                    {
+                        "type": "log",
+                        "message": f"Re-attached to game window '{candidate}' (HWND: {hwnd})",
+                        "level": "INFO",
+                    },
+                )
+            except OSError:
+                pass
+            return True
+
+        return False
+
+    def _desktop_fallback_enabled(self) -> bool:
+        """Return the cached anti-cheat desktop-capture preference.
+
+        The value is re-read at most every few seconds; opening a SQLite
+        connection on every tick was both slow and lock-prone.
+        """
+        now = time.time()
+        if now - self._settings_checked_at < 5.0:
+            return self._desktop_fallback
+        self._settings_checked_at = now
+
+        if not self.database_path:
+            return self._desktop_fallback
+        try:
+            from midgard.settings import SettingsStore
+
+            settings = SettingsStore(self.database_path)
+            self._desktop_fallback = (
+                settings.get("evasion.desktop_fallback", "false").lower() == "true"
+            )
+            settings.close()
+        except Exception:
+            pass
+        return self._desktop_fallback
+
     def _tick(self) -> None:
         """Execute active automation modules."""
         hp_pct = 100
@@ -246,13 +340,7 @@ class RuntimeEngine:
         # Run GDI Screen Capture and Modules
         if self.capture_service:
             try:
-                # Query settings database for anti-cheat desktop capture fallback toggle
-                fallback_enabled = False
-                if self.database_path:
-                    from midgard.settings import SettingsStore
-                    settings = SettingsStore(self.database_path)
-                    fallback_enabled = settings.get("evasion.desktop_fallback", "false").lower() == "true"
-                    settings.close()
+                fallback_enabled = self._desktop_fallback_enabled()
 
                 image = self.capture_service.capture(desktop_fallback=fallback_enabled)
                 self.capture_failures = 0
@@ -285,6 +373,24 @@ class RuntimeEngine:
                         sp_pct = int(calculate_bar_percentage(sp_crop))
                     except Exception:
                         sp_pct = 100
+
+                # Passive experience sampling. This only observes the EXP counter,
+                # so it runs independently of the action priority chain below.
+                if self.experience_tracker and self.experience_tracker.enabled:
+                    try:
+                        exp_log = self.experience_tracker.evaluate(image)
+                        self.xp_gained = self.experience_tracker.total_gained
+                        if exp_log:
+                            send_message(
+                                self._sock,
+                                {
+                                    "type": "log",
+                                    "message": exp_log,
+                                    "level": "INFO",
+                                },
+                            )
+                    except Exception:
+                        pass
 
                 # Check for configured visual search templates
                 # Format: detector.template_path = "/path/to/template.png"
@@ -514,6 +620,11 @@ class RuntimeEngine:
                         )
                     except OSError:
                         pass
+
+                # Repeated failures usually mean the window handle died (client
+                # restarted). Try to re-attach instead of failing forever.
+                if self.capture_failures >= 3 and self._rebind_window():
+                    return
 
                 # Log any runtime capture / evaluation warnings
                 try:
