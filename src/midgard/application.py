@@ -47,6 +47,9 @@ def create_application(
 
     def apply_theme(theme: Theme) -> None:
         app.setStyleSheet(stylesheet(theme))
+        # Publish the active theme so custom-painted widgets (e.g. charts) can
+        # match light/dark colours without direct coupling to the main window.
+        app.setProperty("midgard_theme", theme.value)
 
     apply_theme(initial_theme)
     window = MainWindow(

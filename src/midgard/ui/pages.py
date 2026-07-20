@@ -233,7 +233,11 @@ class RuntimePage(Page):
         tele_layout.addWidget(self.hp_lbl)
         self.card_layout.addWidget(telemetry_frame)
 
-        # 4. Live log terminal styling
+        # 4. Live performance trend chart (fed by real telemetry samples)
+        self.live_chart = StatisticsTrendChart()
+        self.card_layout.addWidget(self.live_chart)
+
+        # 5. Live log terminal styling
         self.terminal = QTextEdit()
         self.terminal.setReadOnly(True)
         # Apply premium monospaced dark terminal style
@@ -294,6 +298,7 @@ class RuntimePage(Page):
 
             self.status_lbl.setText("Status: Starting...")
             self.terminal.clear()
+            self.live_chart.reset_live()
             self.terminal.append(">>> Starting Runtime launcher process...")
 
             # Start worker thread
@@ -345,6 +350,9 @@ class RuntimePage(Page):
         self.xp_lbl.setText(f"XP Gained: {xp}")
         self.loot_lbl.setText(f"Loot: {loot}")
 
+        # Feed the live trend chart with the real telemetry point.
+        self.live_chart.append_sample(xp, loot)
+
         # Persist dynamic stats incrementally inside SQLite
         profile_id = self.profile_combo.currentData()
         if profile_id is not None:
@@ -361,6 +369,14 @@ class RuntimePage(Page):
                     deaths=deaths,
                     loot_count=loot,
                     runtime_seconds=r_sec,
+                )
+                # Record a time-series sample so the Statistics page can render a
+                # real historical trend across the whole session.
+                self.profile_store.add_stat_sample(
+                    profile_id=profile_id,
+                    experience_gained=xp,
+                    loot_count=loot,
+                    hp_pct=int(hp),
                 )
             except Exception:
                 pass
@@ -549,20 +565,49 @@ class LogsPage(Page):
 
 
 class StatisticsTrendChart(QWidget):
-    """Draws custom linear line charts of historical XP gains and loot items collected."""
+    """Custom-painted chart of XP gains (line) and loot collected (bars) over time.
+
+    Works both for a historical series (``set_data``) and for a live runtime feed
+    (``append_sample``). Colours follow the active light/dark application theme.
+    """
+
+    #: Maximum number of samples retained for the live buffer.
+    MAX_POINTS = 240
 
     def __init__(self) -> None:
         super().__init__()
-        self.setMinimumHeight(240)
+        self.setMinimumHeight(220)
         self.xp_data = [0]
         self.loot_data = [0]
         self.hover_x = -1
         self.setMouseTracking(True)  # Enable hover mouse movement tracking
 
     def set_data(self, xp_history: list[int], loot_history: list[int]) -> None:
-        self.xp_data = xp_history if xp_history else [0]
-        self.loot_data = loot_history if loot_history else [0]
+        """Replace the full series (used by the historical Statistics view)."""
+        self.xp_data = list(xp_history) if xp_history else [0]
+        self.loot_data = list(loot_history) if loot_history else [0]
         self.update()  # Request Qt canvas repaint event
+
+    def append_sample(self, xp: int, loot: int) -> None:
+        """Append one live telemetry point, trimming to ``MAX_POINTS``."""
+        # A fresh live session starts from the placeholder [0]; drop it once real
+        # data arrives so the trend does not begin with a spurious flat segment.
+        if self.xp_data == [0] and self.loot_data == [0]:
+            self.xp_data = []
+            self.loot_data = []
+        self.xp_data.append(int(xp))
+        self.loot_data.append(int(loot))
+        if len(self.xp_data) > self.MAX_POINTS:
+            self.xp_data = self.xp_data[-self.MAX_POINTS :]
+            self.loot_data = self.loot_data[-self.MAX_POINTS :]
+        self.update()
+
+    def reset_live(self) -> None:
+        """Clear the buffer back to the empty placeholder state."""
+        self.xp_data = [0]
+        self.loot_data = [0]
+        self.hover_x = -1
+        self.update()
 
     def mouseMoveEvent(self, event) -> None:
         self.hover_x = event.position().x()
@@ -572,87 +617,177 @@ class StatisticsTrendChart(QWidget):
         self.hover_x = -1
         self.update()
 
+    @staticmethod
+    def _format_value(value: float) -> str:
+        """Compact axis/tooltip formatting: 1500 -> '1.5k', 2_000_000 -> '2.0M'."""
+        abs_v = abs(value)
+        if abs_v >= 1_000_000:
+            return f"{value / 1_000_000:.1f}M"
+        if abs_v >= 1_000:
+            return f"{value / 1_000:.1f}k"
+        return f"{int(value)}"
+
+    def _theme_palette(self) -> dict:
+        """Return chart colours matching the active application theme."""
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        theme_value = app.property("midgard_theme") if app is not None else None
+        is_dark = theme_value != "light"  # default to dark when unset
+
+        if is_dark:
+            return {
+                "surface": QColor("#141c29"),
+                "grid": QColor(255, 255, 255, 28),
+                "axis": QColor("#3a4a63"),
+                "text": QColor("#e8edf5"),
+                "muted": QColor("#8f9bad"),
+                "xp": QColor("#3fd08f"),
+                "loot": QColor(88, 152, 219, 150),
+                "guide": QColor("#e0863a"),
+                "bubble": QColor(8, 12, 20, 225),
+                "bubble_text": QColor("#f2f5fa"),
+            }
+        return {
+            "surface": QColor("#ffffff"),
+            "grid": QColor(0, 0, 0, 22),
+            "axis": QColor("#c3ccd6"),
+            "text": QColor("#17202e"),
+            "muted": QColor("#687588"),
+            "xp": QColor("#0f9d63"),
+            "loot": QColor(52, 120, 190, 120),
+            "guide": QColor("#d97828"),
+            "bubble": QColor(23, 32, 46, 235),
+            "bubble_text": QColor("#f2f5fa"),
+        }
+
     def paintEvent(self, event) -> None:
-        from PySide6.QtGui import QPainter, QPen, QColor, QFont
-        from PySide6.QtCore import Qt, QRectF
-        
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QFont, QPainter, QPen
+
+        pal = self._theme_palette()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        # Fill chart area background
+
         w, h = self.width(), self.height()
-        painter.fillRect(0, 0, w, h, QColor(30, 30, 35))
-        
-        # Grid line bounds
-        pad_l, pad_t, pad_r, pad_b = 50, 20, 20, 30
+        # Rounded card-style background.
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(pal["surface"])
+        painter.drawRoundedRect(0, 0, w - 1, h - 1, 10, 10)
+
+        pad_l, pad_t, pad_r, pad_b = 54, 18, 16, 46
         chart_w = w - pad_l - pad_r
         chart_h = h - pad_t - pad_b
-        
-        # Draw background grid lines
-        grid_pen = QPen(QColor(60, 60, 65), 1, Qt.PenStyle.DashLine)
-        painter.setPen(grid_pen)
-        for i in range(5):
-            gy = pad_t + int(chart_h * i / 4)
-            painter.drawLine(pad_l, gy, w - pad_r, gy)
-            
-        # Draw axis bounds
-        axis_pen = QPen(QColor(150, 150, 160), 2)
-        painter.setPen(axis_pen)
-        painter.drawLine(pad_l, pad_t, pad_l, h - pad_b)
-        painter.drawLine(pad_l, h - pad_b, w - pad_r, h - pad_b)
-        
-        # Draw XP Line (Green)
-        max_xp = max(self.xp_data) if max(self.xp_data) > 0 else 100
-        xp_points = []
-        for i, val in enumerate(self.xp_data):
-            cx = pad_l + int(chart_w * i / max(1, len(self.xp_data) - 1))
-            cy = h - pad_b - int(chart_h * val / max_xp)
-            xp_points.append((cx, cy))
-            
-        xp_pen = QPen(QColor(46, 204, 113), 2)
-        painter.setPen(xp_pen)
-        for i in range(len(xp_points) - 1):
-            p1 = xp_points[i]
-            p2 = xp_points[i + 1]
-            painter.drawLine(p1[0], p1[1], p2[0], p2[1])
+        if chart_w <= 10 or chart_h <= 10:
+            return
 
-        # Draw Loot Bars (Blue)
-        max_loot = max(self.loot_data) if max(self.loot_data) > 0 else 10
-        bar_w = max(5, int(chart_w / (2 * max(1, len(self.loot_data)))))
+        base_y = h - pad_b
+        n = len(self.xp_data)
+        max_xp = max(self.xp_data) if self.xp_data else 0
+        max_loot = max(self.loot_data) if self.loot_data else 0
+        is_empty = max_xp == 0 and max_loot == 0
+
+        small_font = QFont("Segoe UI", 8)
+        painter.setFont(small_font)
+
+        # --- Horizontal grid lines with XP-scaled numeric labels ---
+        scale_xp = max_xp if max_xp > 0 else 1
+        for k in range(5):
+            frac = k / 4
+            gy = int(pad_t + chart_h * frac)
+            painter.setPen(QPen(pal["grid"], 1, Qt.PenStyle.DashLine))
+            painter.drawLine(pad_l, gy, w - pad_r, gy)
+            label = self._format_value(scale_xp * (1 - frac))
+            painter.setPen(pal["muted"])
+            painter.drawText(4, gy + 4, pad_l - 8, 12, Qt.AlignmentFlag.AlignRight, label)
+
+        # --- Axes ---
+        painter.setPen(QPen(pal["axis"], 1))
+        painter.drawLine(pad_l, pad_t, pad_l, base_y)
+        painter.drawLine(pad_l, base_y, w - pad_r, base_y)
+
+        def x_at(i: int) -> int:
+            if n <= 1:
+                return pad_l + chart_w // 2
+            return pad_l + int(chart_w * i / (n - 1))
+
+        if is_empty:
+            painter.setPen(pal["muted"])
+            painter.setFont(QFont("Segoe UI", 10))
+            painter.drawText(
+                pad_l,
+                pad_t,
+                chart_w,
+                chart_h,
+                Qt.AlignmentFlag.AlignCenter,
+                "Waiting for runtime telemetry…",
+            )
+            return
+
+        # --- Loot bars (drawn behind the XP line) ---
+        loot_scale = max_loot if max_loot > 0 else 1
+        slot = chart_w / max(1, n)
+        bar_w = max(2, int(slot * 0.55))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(pal["loot"])
         for i, val in enumerate(self.loot_data):
-            cx = pad_l + int(chart_w * i / max(1, len(self.loot_data))) + bar_w // 2
-            bar_h = int(chart_h * val / max_loot)
-            painter.fillRect(cx, h - pad_b - bar_h, bar_w, bar_h, QColor(52, 152, 219))
-            
-        # Draw Interactive Hover Tooltip (TASK-031)
-        if self.hover_x >= pad_l and self.hover_x <= w - pad_r:
-            # Map hover_x to nearest index
-            total_elements = len(self.xp_data)
-            index = int(round((self.hover_x - pad_l) / chart_w * (total_elements - 1)))
-            index = max(0, min(index, total_elements - 1))
-            
-            # Retrieve values
+            if val <= 0:
+                continue
+            bar_h = int(chart_h * val / loot_scale)
+            cx = x_at(i) - bar_w // 2
+            painter.drawRect(cx, base_y - bar_h, bar_w, bar_h)
+
+        # --- XP line ---
+        xp_scale = max_xp if max_xp > 0 else 1
+        points = [
+            (x_at(i), base_y - int(chart_h * val / xp_scale)) for i, val in enumerate(self.xp_data)
+        ]
+        painter.setPen(QPen(pal["xp"], 2))
+        if len(points) == 1:
+            px, py = points[0]
+            painter.setBrush(pal["xp"])
+            painter.drawEllipse(px - 3, py - 3, 6, 6)
+        else:
+            for i in range(len(points) - 1):
+                p1, p2 = points[i], points[i + 1]
+                painter.drawLine(p1[0], p1[1], p2[0], p2[1])
+
+        # --- Hover guide + tooltip ---
+        if n >= 1 and pad_l <= self.hover_x <= w - pad_r:
+            index = int(round((self.hover_x - pad_l) / chart_w * (n - 1))) if n > 1 else 0
+            index = max(0, min(index, n - 1))
             curr_xp = self.xp_data[index]
             curr_loot = self.loot_data[index]
-            target_x = pad_l + int(chart_w * index / max(1, total_elements - 1))
-            
-            # Draw vertical guide line
-            guide_pen = QPen(QColor(230, 126, 34), 1, Qt.PenStyle.SolidLine)
-            painter.setPen(guide_pen)
-            painter.drawLine(target_x, pad_t, target_x, h - pad_b)
-            
-            # Tooltip details bubble
-            painter.fillRect(target_x - 50, pad_t + 40, 110, 45, QColor(0, 0, 0, 200))
-            painter.setPen(QColor(255, 255, 255))
-            painter.setFont(QFont("Arial", 8))
-            painter.drawText(target_x - 45, pad_t + 55, f"XP: {curr_xp}")
-            painter.drawText(target_x - 45, pad_t + 70, f"Loot: {curr_loot} items")
-            
-        # Text annotations
-        painter.setPen(QColor(255, 255, 255))
-        painter.setFont(QFont("Arial", 8))
-        painter.drawText(pad_l + 10, pad_t + 15, "XP Trend (Green Line)")
-        painter.drawText(pad_l + 10, pad_t + 30, "Loot Bar (Blue Bars)")
+            target_x = x_at(index)
+
+            painter.setPen(QPen(pal["guide"], 1))
+            painter.drawLine(target_x, pad_t, target_x, base_y)
+
+            bubble_w, bubble_h = 116, 44
+            bx = min(max(target_x - bubble_w // 2, pad_l), w - pad_r - bubble_w)
+            by = pad_t + 6
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(pal["bubble"])
+            painter.drawRoundedRect(bx, by, bubble_w, bubble_h, 6, 6)
+            painter.setPen(pal["bubble_text"])
+            painter.setFont(small_font)
+            painter.drawText(bx + 10, by + 18, f"XP: {self._format_value(curr_xp)}")
+            painter.drawText(bx + 10, by + 34, f"Loot: {curr_loot} items")
+
+        # --- Legend below the axis ---
+        legend_y = h - pad_b + 22
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(pal["xp"])
+        painter.drawRect(pad_l, legend_y - 8, 14, 4)
+        painter.setPen(pal["muted"])
+        painter.setFont(small_font)
+        painter.drawText(pad_l + 20, legend_y, "XP gained")
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(pal["loot"])
+        painter.drawRect(pad_l + 100, legend_y - 10, 12, 10)
+        painter.setPen(pal["muted"])
+        painter.drawText(pad_l + 118, legend_y, "Loot collected")
 
 
 class StatisticsPage(Page):
@@ -737,11 +872,20 @@ class StatisticsPage(Page):
             self.loot_card.setText(f"Total Loot Collected: {stats.loot_count} items")
             self.deaths_card.setText(f"Character Deaths: {stats.deaths} deaths")
             self.time_card.setText(f"Runtime: {runtime_mins} minutes")
-            
-            # Fetch simulated trend history intervals
-            simulated_xp_history = [0, int(stats.experience_gained * 0.25), int(stats.experience_gained * 0.6), stats.experience_gained]
-            simulated_loot_history = [0, int(stats.loot_count * 0.3), int(stats.loot_count * 0.7), stats.loot_count]
-            self.trend_chart.set_data(simulated_xp_history, simulated_loot_history)
+
+            # Load the real recorded time series; fall back to a simple
+            # start -> current cumulative pair when no samples exist yet.
+            samples = self.profile_store.get_stat_samples(profile_id)
+            if samples:
+                xp_history = [s[0] for s in samples]
+                loot_history = [s[1] for s in samples]
+            elif stats.experience_gained > 0 or stats.loot_count > 0:
+                xp_history = [0, stats.experience_gained]
+                loot_history = [0, stats.loot_count]
+            else:
+                xp_history = [0]
+                loot_history = [0]
+            self.trend_chart.set_data(xp_history, loot_history)
 
 
 class AboutPage(Page):

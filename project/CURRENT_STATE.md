@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-06-28
+Last updated: 2026-07-19
 
 ## Phase
 
@@ -34,7 +34,8 @@ TASK-035 — GUI Drag Box Region Selection Picker and Pixel Template OCR.
 - SettingsPage containing appearance theme selectors, GameGuard Evasion Desktop Capture Fallback checks, and border safety input clamps.
 - Polymorphic Bezier trajectories injecting Gaussian noise jitter and Fitts' law velocity acceleration/deceleration sleeps.
 - Advanced color-filtered `LootModule` supporting selective looting rules based on dropped item label colors (e.g. Rare Only).
-- Rich custom painted `StatisticsTrendChart` widget rendering real-time performance line graphs and bar graphs for XP/loot historical logs with guide-lines hover tooltips.
+- Rich custom painted `StatisticsTrendChart` widget rendering XP line and loot bar graphs. It follows the active light/dark theme, labels the Y axis, aligns bars to the line, clamps the hover tooltip inside the plot, shows a legend and an explicit empty state, and supports both a historical series and a live runtime feed.
+- Persisted per-profile telemetry time series in the `profile_stat_samples` SQLite table (recorded each runtime status tick), replacing the previous fabricated fixed-percentage trend on the Statistics page and driving a live chart on the Runtime page.
 - Interactive `RuntimePage` allowing profile selection, start/pause/stop runtime triggers, background event collection via a non-blocking `RuntimeWorker` thread, live terminal logging, and operational statistics metrics (HP, XP, Loot)
 - Searchable and clearable `LogsPage` visual terminal with real-time file reading, filtering by text patterns, and severity level selections (INFO, WARNING, ERROR)
 - Active `StatisticsPage` displaying profile operational metrics (XP accumulated, loot collected, deaths, session times) directly queried from SQLite storage

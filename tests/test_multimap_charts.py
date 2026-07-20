@@ -52,3 +52,42 @@ def test_statistics_trend_chart_data_assignment() -> None:
     chart.set_data([10, 40, 100], [1, 2, 5])
     assert chart.xp_data == [10, 40, 100]
     assert chart.loot_data == [1, 2, 5]
+
+
+def test_statistics_trend_chart_live_append_and_reset() -> None:
+    """append_sample builds a live series, dropping the initial placeholder point."""
+    from PySide6.QtWidgets import QApplication
+    import sys
+
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    chart = StatisticsTrendChart()
+    assert chart.xp_data == [0] and chart.loot_data == [0]
+
+    # First real sample replaces the [0] placeholder rather than appending to it.
+    chart.append_sample(120, 2)
+    assert chart.xp_data == [120]
+    assert chart.loot_data == [2]
+
+    chart.append_sample(300, 5)
+    assert chart.xp_data == [120, 300]
+    assert chart.loot_data == [2, 5]
+
+    # Buffer is capped at MAX_POINTS.
+    for i in range(chart.MAX_POINTS + 50):
+        chart.append_sample(i, i)
+    assert len(chart.xp_data) == chart.MAX_POINTS
+    assert len(chart.loot_data) == chart.MAX_POINTS
+
+    chart.reset_live()
+    assert chart.xp_data == [0]
+    assert chart.loot_data == [0]
+
+
+def test_statistics_trend_chart_value_formatting() -> None:
+    """Compact numeric formatting for axis and tooltip labels."""
+    assert StatisticsTrendChart._format_value(500) == "500"
+    assert StatisticsTrendChart._format_value(1500) == "1.5k"
+    assert StatisticsTrendChart._format_value(2_000_000) == "2.0M"

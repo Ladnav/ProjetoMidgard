@@ -97,6 +97,51 @@ def test_profile_statistics_update(store: ProfileStore) -> None:
     assert profile.stats.runtime_seconds == 3600.5
 
 
+def test_stat_samples_record_and_fetch_in_order(store: ProfileStore) -> None:
+    """Telemetry samples are stored and returned in chronological order."""
+    profile_id = store.create_profile("Skuld", "Sage")
+    assert store.get_stat_samples(profile_id) == []
+
+    store.add_stat_sample(profile_id, experience_gained=100, loot_count=1, hp_pct=90)
+    store.add_stat_sample(profile_id, experience_gained=250, loot_count=3, hp_pct=80)
+    store.add_stat_sample(profile_id, experience_gained=400, loot_count=4, hp_pct=100)
+
+    samples = store.get_stat_samples(profile_id)
+    assert samples == [(100, 1, 90), (250, 3, 80), (400, 4, 100)]
+
+
+def test_stat_samples_limit_returns_recent_chronological(store: ProfileStore) -> None:
+    """The limit keeps only the most recent samples, still oldest-to-newest."""
+    profile_id = store.create_profile("Urd", "Priest")
+    for i in range(1, 11):
+        store.add_stat_sample(profile_id, experience_gained=i * 10, loot_count=i)
+
+    samples = store.get_stat_samples(profile_id, limit=3)
+    assert samples == [(80, 8, 100), (90, 9, 100), (100, 10, 100)]
+
+
+def test_clear_stat_samples(store: ProfileStore) -> None:
+    """Samples can be cleared for a profile."""
+    profile_id = store.create_profile("Verdandi", "Monk")
+    store.add_stat_sample(profile_id, experience_gained=10, loot_count=1)
+    store.clear_stat_samples(profile_id)
+    assert store.get_stat_samples(profile_id) == []
+
+
+def test_stat_samples_cascade_delete(store: ProfileStore) -> None:
+    """Deleting a profile removes its recorded telemetry samples."""
+    profile_id = store.create_profile("Nott", "Rogue")
+    store.add_stat_sample(profile_id, experience_gained=10, loot_count=1)
+
+    with sqlite3.connect(store.database_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM profile_stat_samples").fetchone()[0] == 1
+
+    store.delete_profile(profile_id)
+
+    with sqlite3.connect(store.database_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM profile_stat_samples").fetchone()[0] == 0
+
+
 def test_profile_cascade_delete(store: ProfileStore, tmp_path: Path) -> None:
     """Deleting a profile also deletes all its stats and rules via foreign keys."""
     profile_id = store.create_profile("Balder", "Swordman")

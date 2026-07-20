@@ -7,6 +7,20 @@ released remain under **Unreleased** until a version is intentionally published.
 
 ## [Unreleased]
 
+### Added
+
+- Persisted per-profile telemetry time series (`profile_stat_samples` table) with
+  `add_stat_sample`, `get_stat_samples`, and `clear_stat_samples` on `ProfileStore`.
+- Live performance trend chart on the Runtime page, fed by real runtime telemetry samples.
+
+### Changed
+
+- `StatisticsTrendChart` now follows the active light/dark theme, draws numeric Y-axis
+  labels, aligns loot bars with the XP line, keeps the hover tooltip inside the plot area,
+  moves the legend below the axis, and renders an explicit empty state.
+- The Statistics page now plots the real recorded telemetry history instead of a fabricated
+  fixed-percentage curve.
+
 ## [0.2.0] - 2026-06-27
 
 ### Added

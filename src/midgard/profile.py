@@ -85,6 +85,21 @@ class ProfileStore:
                 """
             )
 
+            # 4. Profile Statistics Samples Table (time series for trend charts)
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS profile_stat_samples (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    profile_id INTEGER NOT NULL,
+                    experience_gained INTEGER DEFAULT 0,
+                    loot_count INTEGER DEFAULT 0,
+                    hp_pct INTEGER DEFAULT 100,
+                    recorded_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+                    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+                )
+                """
+            )
+
     def create_profile(
         self, name: str, character_class: str = "Novice", window_title: str = "Ragnarok"
     ) -> int:
@@ -221,6 +236,50 @@ class ProfileStore:
                 WHERE profile_id = ?
                 """,
                 (experience_gained, deaths, loot_count, runtime_seconds, profile_id),
+            )
+
+    def add_stat_sample(
+        self,
+        profile_id: int,
+        experience_gained: int,
+        loot_count: int,
+        hp_pct: int = 100,
+    ) -> None:
+        """Append a single time-series telemetry sample for trend charting."""
+        with self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO profile_stat_samples
+                    (profile_id, experience_gained, loot_count, hp_pct)
+                VALUES (?, ?, ?, ?)
+                """,
+                (profile_id, experience_gained, loot_count, hp_pct),
+            )
+
+    def get_stat_samples(self, profile_id: int, limit: int = 300) -> list[tuple[int, int, int]]:
+        """Return up to ``limit`` most recent samples in chronological order.
+
+        Each tuple is ``(experience_gained, loot_count, hp_pct)``.
+        """
+        rows = self._connection.execute(
+            """
+            SELECT experience_gained, loot_count, hp_pct FROM (
+                SELECT id, experience_gained, loot_count, hp_pct
+                FROM profile_stat_samples
+                WHERE profile_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+            ) ORDER BY id ASC
+            """,
+            (profile_id, limit),
+        ).fetchall()
+        return [(row[0], row[1], row[2]) for row in rows]
+
+    def clear_stat_samples(self, profile_id: int) -> None:
+        """Remove all recorded telemetry samples for a profile."""
+        with self._connection:
+            self._connection.execute(
+                "DELETE FROM profile_stat_samples WHERE profile_id = ?", (profile_id,)
             )
 
     def update_profile_window_title(self, profile_id: int, window_title: str) -> None:
