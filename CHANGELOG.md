@@ -39,6 +39,10 @@ released remain under **Unreleased** until a version is intentionally published.
 
 ### Fixed
 
+- Game-window capture in the Profiles pick/verify flow always failed and fell back to the
+  primary screen, because it built a QImage with `pil_img.width()` / `pil_img.height()` —
+  PIL exposes those as int attributes, so calling them raised `'int' object is not callable`.
+  Extracted a tested `_pil_to_qpixmap` helper using the attributes.
 - A* navigation never actually routed: `NavigationModule` built walkable grids as
   `1 = walkable, 0 = obstacle` but `AStarNavigator` expects the opposite, so `find_path`
   treated walkable cells as blocked, returned `None`, and silently fell back to a direct

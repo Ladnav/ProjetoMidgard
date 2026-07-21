@@ -2455,21 +2455,12 @@ class ProfilesPage(Page):
 
         try:
             capture_service = WindowCaptureService.from_title(profile.window_title)
-            pil_img = capture_service.capture()
-            # Convert PIL Image to QPixmap
-            pil_img = pil_img.convert("RGBA")
-            data = bytes(pil_img.tobytes("raw", "RGBA"))
-            qimg = QImage(data, pil_img.width(), pil_img.height(), QImage.Format.Format_RGBA8888)
-            return QPixmap.fromImage(qimg)
+            return self._pil_to_qpixmap(capture_service.capture())
         except Exception as e:
             # Fallback final: Try connecting using the bare profile name as title (TASK-035)
             try:
                 capture_service = WindowCaptureService.from_title(profile.name)
-                pil_img = capture_service.capture()
-                pil_img = pil_img.convert("RGBA")
-                data = bytes(pil_img.tobytes("raw", "RGBA"))
-                qimg = QImage(data, pil_img.width(), pil_img.height(), QImage.Format.Format_RGBA8888)
-                return QPixmap.fromImage(qimg)
+                return self._pil_to_qpixmap(capture_service.capture())
             except Exception:
                 pass
 
@@ -2520,6 +2511,20 @@ class ProfilesPage(Page):
         qimg = pixmap.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
         img_bytes = qimg.constBits().tobytes()
         return Image.frombytes("RGBA", (qimg.width(), qimg.height()), img_bytes)
+
+    @staticmethod
+    def _pil_to_qpixmap(pil_img: Image.Image) -> QPixmap:
+        """Convert a PIL image into a QPixmap.
+
+        Note: PIL exposes ``width``/``height`` as int attributes, not methods.
+        Calling them (``pil_img.width()``) raises ``'int' object is not callable``,
+        which previously broke every game-window capture and forced the primary-
+        screen fallback.
+        """
+        rgba = pil_img.convert("RGBA")
+        data = bytes(rgba.tobytes("raw", "RGBA"))
+        qimg = QImage(data, rgba.width, rgba.height, QImage.Format.Format_RGBA8888)
+        return QPixmap.fromImage(qimg)
 
     def _preview_navigation_route(self) -> None:
         """Show the configured waypoints as a route map for visual verification."""
