@@ -10,37 +10,31 @@ from midgard.runtime.input import SCAN_CODES, BaseInputAdapter
 
 def calculate_bar_percentage(crop_img: Image.Image) -> float:
     """Calculate the filled percentage of a status bar image using HSV color saturation.
-    
-    Tolerates short desaturated gaps (up to 6 pixels) to handle white/black overlaid text.
+
+    A column counts as filled when *any* pixel in it is saturated, rather than
+    only the middle row. Status bars in the client draw the current/max numbers
+    on top of the bar; sampling only the middle row let that overlaid text break
+    the reading (e.g. a full HP bar reporting 0%). Scanning per column keeps the
+    fill correct because the text only darkens some rows, not the whole column.
+    Tolerates short desaturated gaps (up to 6 columns) to bridge separators.
     """
     if crop_img.width <= 0 or crop_img.height <= 0:
         return 100.0
 
-    # Convert to HSV to evaluate color saturation
-    hsv_img = crop_img.convert("HSV")
-    hsv_arr = np.array(hsv_img)
-    h, w, c = hsv_arr.shape
-    
-    # We read along the vertical center row of the crop
-    mid_y = h // 2
-    if mid_y >= h:
-        mid_y = h - 1
+    # Convert to HSV; channel 1 is saturation.
+    hsv_arr = np.array(crop_img.convert("HSV"))
+    h, w, _ = hsv_arr.shape
+    if w <= 0:
+        return 100.0
 
-    # Extract saturation channel of the middle row
-    # In HSV: channel 0 = Hue, channel 1 = Saturation, channel 2 = Value
-    s_row = hsv_arr[mid_y, :, 1]
-    
+    # Saturated color (blue/green/red/yellow) is the active bar; desaturated
+    # gray/black/white is empty background or overlaid text.
+    col_colored = (hsv_arr[:, :, 1] > 40).any(axis=0)
+
     filled_w = 0
     consecutive_empty = 0
-    
     for x in range(w):
-        sat = s_row[x]
-        
-        # Saturated color (blue/green/red/yellow) represents the active bar.
-        # Desaturated gray/black/white represents empty background or overlaid text.
-        is_colored = sat > 40
-        
-        if is_colored:
+        if col_colored[x]:
             filled_w = x + 1
             consecutive_empty = 0
         else:
@@ -49,11 +43,11 @@ def calculate_bar_percentage(crop_img: Image.Image) -> float:
                 break
             filled_w = x + 1
 
-    # Subtract the empty suffix if we broke out of the loop
+    # Subtract the empty suffix if we broke out of the loop.
     if consecutive_empty > 6:
         filled_w = max(0, filled_w - consecutive_empty)
 
-    return (filled_w / w) * 100.0 if w > 0 else 100.0
+    return (filled_w / w) * 100.0
 
 
 class HealModule:
