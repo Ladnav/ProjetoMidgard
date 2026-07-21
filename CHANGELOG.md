@@ -39,6 +39,12 @@ released remain under **Unreleased** until a version is intentionally published.
 
 ### Fixed
 
+- A* navigation never actually routed: `NavigationModule` built walkable grids as
+  `1 = walkable, 0 = obstacle` but `AStarNavigator` expects the opposite, so `find_path`
+  treated walkable cells as blocked, returned `None`, and silently fell back to a direct
+  click. Grids are now converted to the pathfinder's convention at the boundary.
+- A* routes started from a hardcoded map origin `(0, 0)` instead of the previous waypoint,
+  producing paths from the wrong place. They now start from the waypoint being walked from.
 - Experience was never counted: `xp_gained` was initialised and reported but never
   incremented, so every XP figure was permanently zero.
 - Runtime telemetry arrives ~20x/second, which caused three defects: the database grew by
