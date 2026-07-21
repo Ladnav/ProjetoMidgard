@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-06-28
+Last updated: 2026-07-19
 
 ## Phase
 
@@ -34,7 +34,18 @@ TASK-035 — GUI Drag Box Region Selection Picker and Pixel Template OCR.
 - SettingsPage containing appearance theme selectors, GameGuard Evasion Desktop Capture Fallback checks, and border safety input clamps.
 - Polymorphic Bezier trajectories injecting Gaussian noise jitter and Fitts' law velocity acceleration/deceleration sleeps.
 - Advanced color-filtered `LootModule` supporting selective looting rules based on dropped item label colors (e.g. Rare Only).
-- Rich custom painted `StatisticsTrendChart` widget rendering real-time performance line graphs and bar graphs for XP/loot historical logs with guide-lines hover tooltips.
+- Rich custom painted `StatisticsTrendChart` widget rendering XP line and loot bar graphs. It follows the active light/dark theme, labels the Y axis, aligns bars to the line, clamps the hover tooltip inside the plot, shows a legend and an explicit empty state, and supports both a historical series and a live runtime feed.
+- Operational `DashboardPage` (replacing the former placeholder page) showing aggregate XP, loot, deaths, and runtime totals summed across every stored profile, plus a per-profile overview listing which automation modules (Healing, Experience, Looting, Combat, Navigation, Consumables, Stash, Security) are configured on. Refreshes on navigation.
+- `NavigationMapView` route preview: the Navigation tab's "Preview Route Map" button renders the configured waypoints as a numbered, auto-scaled, theme-aware connected route (parsed via the runtime `NavigationModule`), for visual verification of the path before running. Vision-based; does not read game memory.
+- Grid A* navigation now routes correctly: navigation grids (`1 = walkable`) are converted to the pathfinder convention (`0 = walkable`) at the boundary, and routes start from the previous waypoint instead of a hardcoded `(0, 0)`.
+- Game-window capture in the Profiles pick/verify flow goes through a tested `_pil_to_qpixmap` helper (previously it crashed by calling PIL's int `width`/`height` attributes as methods and silently fell back to the primary screen).
+- `calculate_bar_percentage` reads HP/SP bars per column (a column counts as filled if any pixel is saturated), so the current/max numbers the client draws over the bar no longer zero out the reading. Validated against a live client capture.
+- Reusable `StatCard` metric tiles used by the Runtime and Statistics pages, a colour-coded HP `QProgressBar` driven by a dynamic `level` property, and theme-aware console styling (`QTextEdit#console`) shared by the runtime terminal and the logs viewer. Durations render compactly (`3h 05m`) and counters use thousands separators.
+- Telemetry sampling decoupled from the engine tick rate: the runtime emits status ~20x/second, so the Runtime page throttles chart appends and database writes to one sample per second and accumulates real elapsed wall time for `runtime_seconds`.
+- Autonomous `ExperienceTracker` sampling a configured on-screen EXP region with the pixel-font digit recognizer, accumulating positive deltas, treating counter drops as level-ups, and optionally rejecting implausible OCR jumps. Configured through a dedicated Experience tab with drag-box region selection and a "Verify EXP Reading" helper.
+- Runtime window re-binding: when the bound HWND becomes invalid (client restart), the engine re-attaches by stored title or profile name, refreshes the handle held by the input adapter, combat, and navigation modules, and rate-limits retry attempts.
+- Cluster-based `LootModule` target selection: matching label pixels are grouped into distinct clusters and the cluster closest to the character is clicked, instead of averaging all matches into a single midpoint.
+- Persisted per-profile telemetry time series in the `profile_stat_samples` SQLite table (recorded each runtime status tick), replacing the previous fabricated fixed-percentage trend on the Statistics page and driving a live chart on the Runtime page.
 - Interactive `RuntimePage` allowing profile selection, start/pause/stop runtime triggers, background event collection via a non-blocking `RuntimeWorker` thread, live terminal logging, and operational statistics metrics (HP, XP, Loot)
 - Searchable and clearable `LogsPage` visual terminal with real-time file reading, filtering by text patterns, and severity level selections (INFO, WARNING, ERROR)
 - Active `StatisticsPage` displaying profile operational metrics (XP accumulated, loot collected, deaths, session times) directly queried from SQLite storage

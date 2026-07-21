@@ -8,6 +8,19 @@ from PIL import Image
 from midgard.runtime.input import BaseInputAdapter
 
 
+def _to_astar_grid(grid: list[list[int]]) -> list[list[int]]:
+    """Convert a navigation grid to the pathfinder's cell convention.
+
+    Navigation maps (PNG obstacles and JSON matrices) use ``1 = walkable,
+    0 = obstacle``, but :class:`AStarNavigator` uses the opposite
+    (``0 = walkable, 1 = blocked``). The two layers historically disagreed, so
+    ``find_path`` treated every walkable cell as blocked, returned ``None``, and
+    silently fell back to a direct click. Converting at the boundary makes A*
+    routing actually work.
+    """
+    return [[0 if cell else 1 for cell in row] for row in grid]
+
+
 class NavigationModule:
     """Moves the mouse and clicks coordinates sequentially to navigate the character."""
 
@@ -183,7 +196,13 @@ class NavigationModule:
                 self.current_map = target_map  # updates state simulating map loading completed
                 return f"Multi-Map Transition: Traversed portal at ({tx}, {ty}) from {old_map} to {target_map}. Waiting {t_wait}s."
 
-        # Dynamic pathfinding option
+        # Dynamic pathfinding option.
+        # Route from the previous waypoint (where the character is walking from)
+        # rather than a fixed (0, 0) map corner, which produced paths that started
+        # from the wrong place. Index -1 wraps to the last waypoint, which is the
+        # correct predecessor when looping back to the first.
+        prev_x, prev_y, _ = self.waypoints[self.current_index - 1]
+        route_start = (prev_x, prev_y)
         grid_map = self.rules.get("navigation.grid_map")
         
         # Load map from image file path or JSON file path if specified (TASK-026)
@@ -208,8 +227,8 @@ class NavigationModule:
                                 row.append(0 if rgb == (0, 0, 0) else 1)
                             grid.append(row)
                         from midgard.runtime.pathfinding import AStarNavigator
-                        navigator = AStarNavigator(grid)
-                        path = navigator.find_path((0, 0), (x, y))
+                        navigator = AStarNavigator(_to_astar_grid(grid))
+                        path = navigator.find_path(route_start, (x, y))
                     except Exception:
                         pass
                 elif p.suffix.lower() == ".json":
@@ -217,8 +236,8 @@ class NavigationModule:
                         with open(p, "r") as f:
                             grid = json.load(f)
                         from midgard.runtime.pathfinding import AStarNavigator
-                        navigator = AStarNavigator(grid)
-                        path = navigator.find_path((0, 0), (x, y))
+                        navigator = AStarNavigator(_to_astar_grid(grid))
+                        path = navigator.find_path(route_start, (x, y))
                     except Exception:
                         pass
 
@@ -234,9 +253,8 @@ class NavigationModule:
                     if row_str.strip():
                         grid.append(list(map(int, row_str.strip().split(","))))
 
-                # Assume start at last known click or 0,0 for routing simulation
-                navigator = AStarNavigator(grid)
-                start_node = (0, 0)
+                navigator = AStarNavigator(_to_astar_grid(grid))
+                start_node = route_start
                 end_node = (x, y)
                 path = navigator.find_path(start_node, end_node)
             except Exception:

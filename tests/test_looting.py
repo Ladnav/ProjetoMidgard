@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import MagicMock
 from PIL import Image
 
-from midgard.runtime.loot import LootModule
+from midgard.runtime.loot import LootModule, cluster_points
 
 
 def test_looting_module_finds_color_centroid_and_clicks() -> None:
@@ -47,3 +47,80 @@ def test_looting_module_finds_color_centroid_and_clicks() -> None:
     # Centroid of square from 8 to 11 is (8+9+10+11)/4 = 9.5 -> integer floor 9
     mock_input.move_mouse.assert_called_with(9, 9)
     assert mock_input.click_mouse.call_count == 1
+
+
+def test_cluster_points_groups_separate_labels() -> None:
+    """Nearby points collapse into one cluster; distant groups stay separate."""
+    points = [(0, 0), (2, 0), (0, 2), (100, 100), (102, 100)]
+    clusters = cluster_points(points, radius=5)
+
+    assert len(clusters) == 2
+    sizes = sorted(len(c) for c in clusters)
+    assert sizes == [2, 3]
+
+
+def test_cluster_points_handles_empty_input() -> None:
+    assert cluster_points([], radius=5) == []
+
+
+def test_looting_picks_nearest_label_instead_of_global_average() -> None:
+    """Two separate item labels must not average into an empty midpoint.
+
+    Regression test: the previous implementation averaged every matching pixel,
+    so two items on opposite sides produced a click on bare ground between them.
+    """
+    mock_input = MagicMock()
+    rules = {
+        "loot.enabled": "true",
+        "loot.color.r": "220",
+        "loot.color.g": "220",
+        "loot.color.b": "220",
+        "loot.color.tolerance": "10",
+        "loot.cooldown": "0.0",
+        "loot.step_x": "2",
+        "loot.step_y": "2",
+        "loot.cluster_radius": "6",
+    }
+    loot = LootModule(rules, mock_input)
+
+    img = Image.new("RGB", (100, 100), color=(0, 0, 0))
+    # Label A: far top-left corner.
+    for x in range(4, 10):
+        for y in range(4, 10):
+            img.putpixel((x, y), (220, 220, 220))
+    # Label B: near the character (image centre is (50, 50)).
+    for x in range(56, 62):
+        for y in range(56, 62):
+            img.putpixel((x, y), (220, 220, 220))
+
+    res = loot.evaluate(img)
+    assert res is not None
+    assert "2 label(s) detected" in res
+
+    # The click must land on the closer label (B), never on the midpoint (~33,33).
+    (click_x, click_y), _ = mock_input.move_mouse.call_args
+    assert 54 <= click_x <= 63, f"clicked {click_x}, expected the nearby label"
+    assert 54 <= click_y <= 63, f"clicked {click_y}, expected the nearby label"
+
+
+def test_looting_ignores_clusters_below_minimum_size() -> None:
+    """Isolated stray pixels are treated as noise, not as item labels."""
+    mock_input = MagicMock()
+    rules = {
+        "loot.enabled": "true",
+        "loot.color.r": "220",
+        "loot.color.g": "220",
+        "loot.color.b": "220",
+        "loot.color.tolerance": "10",
+        "loot.cooldown": "0.0",
+        "loot.step_x": "1",
+        "loot.step_y": "1",
+        "loot.min_cluster_size": "5",
+    }
+    loot = LootModule(rules, mock_input)
+
+    img = Image.new("RGB", (40, 40), color=(0, 0, 0))
+    img.putpixel((10, 10), (220, 220, 220))  # single stray pixel
+
+    assert loot.evaluate(img) is None
+    assert mock_input.click_mouse.call_count == 0

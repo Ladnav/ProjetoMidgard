@@ -78,6 +78,24 @@ def test_heal_module_trigger_on_low_health() -> None:
     assert adapter.history[1] == ("release", SCAN_CODES["F3"])
 
 
+def test_calculate_bar_percentage_ignores_overlaid_text() -> None:
+    """A full bar with dark numbers drawn across its middle still reads ~100%.
+
+    Regression: sampling only the middle row let overlaid current/max text break
+    the reading, so a full HP bar could report 0%.
+    """
+    from midgard.runtime.heal import calculate_bar_percentage
+
+    # Full saturated blue bar, 100 wide x 12 tall.
+    arr = np.zeros((12, 100, 3), dtype=np.uint8)
+    arr[:, :] = [0, 0, 255]
+    # Dark "text" across the vertical middle rows in the centre columns.
+    arr[4:8, 40:60] = [30, 30, 30]
+    img = Image.fromarray(arr)
+
+    assert calculate_bar_percentage(img) >= 99.0
+
+
 def test_heal_module_respects_cooldown() -> None:
     """HealModule bypasses execution if evaluate() is called within cooldown window."""
     adapter = DummyInputAdapter()

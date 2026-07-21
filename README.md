@@ -1,8 +1,8 @@
 # Project Midgard
 
 Project Midgard is a long-term software engineering project for a modular desktop automation
-platform. **Midgard Studio** is its executable graphical foundation: a PySide6 desktop shell with
-local settings, logging, and intentionally empty workspaces for future capabilities.
+platform. **Midgard Studio** is its executable application: a PySide6 desktop client with local
+settings, logging, per-character profiles, and a multi-process automation runtime.
 
 ## Approved direction
 
@@ -13,17 +13,21 @@ local settings, logging, and intentionally empty workspaces for future capabilit
 - Independent profiles per character
 - Built-in documentation, maintained as part of the product
 
-Midgard Studio does not implement game automation, runtime behavior, capture, OCR, computer
-vision, input automation, or a rule engine. See
-[PROJECT_CONTEXT.md](project/PROJECT_CONTEXT.md) for the authoritative scope and open decisions.
+Machine learning, memory reading, cloud sync, a plugin marketplace, and automatic updates remain
+out of scope. See [PROJECT_CONTEXT.md](project/PROJECT_CONTEXT.md) for the authoritative scope and
+open decisions.
 
 ## Current capabilities
 
-- Main desktop window with seven navigation pages
-- Light and dark themes
-- SQLite-backed theme preference
-- Console and rotating-file application logging
-- Application version displayed on the About page
+- Desktop window with Dashboard, Profiles, Runtime, Statistics, Settings, Logs, and About pages
+- Per-character profiles with tabbed automation rules, stored in SQLite
+- Multi-process runtime: GDI window capture, Win32 input, and IPC-driven telemetry
+- Automation modules: healing (pixel/OCR), combat (colour/OpenCV/hover), navigation (A*, multi-map,
+  script plugins), looting, consumables, stash/NPC selling, and anomaly/security checks
+- OCR experience tracking and a real, persisted telemetry trend chart
+- Discord notifications and anti-detection input behaviours
+- Operational Dashboard aggregating real per-profile data
+- Light and dark themes with SQLite-backed preference, and console/rotating-file logging
 
 ## Getting started
 

@@ -1,6 +1,7 @@
+import time
 from pathlib import Path
-from PIL import Image
 
+from PIL import Image
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
@@ -10,10 +11,12 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QSizePolicy,
     QSpinBox,
@@ -182,6 +185,9 @@ class RuntimeWorker(QThread):
 class RuntimePage(Page):
     """Runtime page that controls character automation engine loops."""
 
+    #: Telemetry arrives ~20x/second; persist and chart at most one sample/second.
+    SAMPLE_INTERVAL_SECONDS = 1.0
+
     def __init__(self, profile_store: ProfileStore) -> None:
         super().__init__(
             "Runtime",
@@ -193,6 +199,7 @@ class RuntimePage(Page):
         self.profile_store = profile_store
         self.launcher: RuntimeLauncher | None = None
         self.worker: RuntimeWorker | None = None
+        self._last_sample_time = 0.0
 
         # 1. Profile selector layout
         selector_layout = QHBoxLayout()
@@ -218,34 +225,43 @@ class RuntimePage(Page):
         controls_layout.addWidget(self.stop_btn)
         self.card_layout.addLayout(controls_layout)
 
-        # 3. Telemetry card layout
-        telemetry_frame = QFrame()
-        telemetry_frame.setObjectName("contentCard")
-        tele_layout = QHBoxLayout(telemetry_frame)
-        self.status_lbl = QLabel("Status: Idle")
-        self.xp_lbl = QLabel("XP Gained: 0")
-        self.loot_lbl = QLabel("Loot: 0")
-        self.hp_lbl = QLabel("HP: --%")
+        # 3. Telemetry cards
+        tele_layout = QHBoxLayout()
+        tele_layout.setSpacing(10)
+        self.status_card = StatCard("Status", "Idle")
+        self.xp_card = StatCard("XP Gained", "0")
+        self.loot_card = StatCard("Loot", "0")
+        self.hp_card = StatCard("HP", "--%")
 
-        tele_layout.addWidget(self.status_lbl)
-        tele_layout.addWidget(self.xp_lbl)
-        tele_layout.addWidget(self.loot_lbl)
-        tele_layout.addWidget(self.hp_lbl)
-        self.card_layout.addWidget(telemetry_frame)
+        # Health bar lives inside the HP card, under its numeric value.
+        self.hp_bar = QProgressBar()
+        self.hp_bar.setObjectName("hpBar")
+        self.hp_bar.setRange(0, 100)
+        self.hp_bar.setValue(0)
+        self.hp_bar.setTextVisible(False)
+        self.hp_card.layout().addWidget(self.hp_bar)
 
-        # 4. Live log terminal styling
+        for card in (self.status_card, self.xp_card, self.loot_card, self.hp_card):
+            tele_layout.addWidget(card, 1)
+        self.card_layout.addLayout(tele_layout)
+
+        # Backwards-compatible aliases: existing callers and tests address these
+        # labels directly, so keep them pointing at the card value labels.
+        self.status_lbl = self.status_card.value_label
+        self.xp_lbl = self.xp_card.value_label
+        self.loot_lbl = self.loot_card.value_label
+        self.hp_lbl = self.hp_card.value_label
+
+        # 4. Live performance trend chart (fed by real telemetry samples)
+        self.live_chart = StatisticsTrendChart()
+        self.card_layout.addWidget(self.live_chart)
+
+        # 5. Live log terminal styling
         self.terminal = QTextEdit()
         self.terminal.setReadOnly(True)
-        # Apply premium monospaced dark terminal style
-        self.terminal.setStyleSheet(
-            "background-color: #0b0f19;"
-            "color: #10b981;"
-            "font-family: 'Consolas', 'Courier New', monospace;"
-            "font-size: 11pt;"
-            "border: 1px solid #1e293b;"
-            "border-radius: 4px;"
-            "padding: 8px;"
-        )
+        # Styled through the theme stylesheet so the console follows light/dark
+        # instead of being pinned to one hardcoded palette.
+        self.terminal.setObjectName("console")
         self.terminal.setMinimumHeight(240)
         self.card_layout.addWidget(self.terminal)
 
@@ -292,8 +308,17 @@ class RuntimePage(Page):
             self.stop_btn.setEnabled(True)
             self.profile_combo.setEnabled(False)
 
-            self.status_lbl.setText("Status: Starting...")
+            self.status_card.set_value("Starting...")
             self.terminal.clear()
+            self.live_chart.reset_live()
+            self._last_sample_time = 0.0
+            # The engine restarts its XP/loot counters from zero each run, so
+            # keeping the previous session's samples would render a meaningless
+            # sawtooth. Start the recorded series fresh for this session.
+            try:
+                self.profile_store.clear_stat_samples(profile_id)
+            except Exception:
+                pass
             self.terminal.append(">>> Starting Runtime launcher process...")
 
             # Start worker thread
@@ -313,11 +338,11 @@ class RuntimePage(Page):
             if self.pause_btn.text() == "Pause":
                 self.launcher.send_command("pause")
                 self.pause_btn.setText("Resume")
-                self.status_lbl.setText("Status: Paused")
+                self.status_card.set_value("Paused")
             else:
                 self.launcher.send_command("start")
                 self.pause_btn.setText("Pause")
-                self.status_lbl.setText("Status: Running")
+                self.status_card.set_value("Running")
 
     def _stop_runtime(self) -> None:
         """Gracefully request engine stop and process termination."""
@@ -331,7 +356,7 @@ class RuntimePage(Page):
         if "registration" in message.lower() or "connected" in message.lower():
             if self.launcher:
                 self.launcher.send_command("start")
-                self.status_lbl.setText("Status: Running")
+                self.status_card.set_value("Running")
 
         prefix = f"[{level}] " if level else ""
         self.terminal.append(f"{prefix}{message}")
@@ -341,37 +366,63 @@ class RuntimePage(Page):
         xp = status.get("xp_gained", 0)
         loot = status.get("loot_collected", 0)
 
-        self.hp_lbl.setText(f"HP: {hp}%")
-        self.xp_lbl.setText(f"XP Gained: {xp}")
-        self.loot_lbl.setText(f"Loot: {loot}")
+        hp_value = max(0, min(100, int(hp)))
+        self.hp_card.set_value(f"{hp}%", alert=hp_value < 30)
+        self.xp_card.set_value(f"{xp:,}")
+        self.loot_card.set_value(f"{loot:,}")
+
+        self.hp_bar.setValue(hp_value)
+        # Drive the bar colour through a dynamic property so the palette stays in
+        # the theme stylesheet instead of hardcoded widget-level colours.
+        level = "low" if hp_value < 30 else ("mid" if hp_value < 60 else "ok")
+        if self.hp_bar.property("level") != level:
+            self.hp_bar.setProperty("level", level)
+            _repolish(self.hp_bar)
+
+        # The engine emits status roughly 20x per second. Sampling the chart and
+        # the database at that rate would store ~72k rows per hour and reduce the
+        # live chart to a few seconds of history, so throttle the persistence to
+        # one sample per second while the labels keep updating in real time.
+        now = time.monotonic()
+        if now - self._last_sample_time < self.SAMPLE_INTERVAL_SECONDS:
+            return
+        elapsed = now - self._last_sample_time if self._last_sample_time else 0.0
+        self._last_sample_time = now
+
+        # Feed the live trend chart with the real telemetry point.
+        self.live_chart.append_sample(xp, loot)
 
         # Persist dynamic stats incrementally inside SQLite
         profile_id = self.profile_combo.currentData()
         if profile_id is not None:
             try:
-                # Assume 1 second elapsed per telemetry update tick
                 profile = self.profile_store.get_profile(profile_id)
                 deaths = profile.stats.deaths if (profile and profile.stats) else 0
-                r_sec = (
-                    (profile.stats.runtime_seconds + 1.0) if (profile and profile.stats) else 1.0
+                previous_runtime = (
+                    profile.stats.runtime_seconds if (profile and profile.stats) else 0.0
                 )
+                # Accumulate the real elapsed wall time. The previous code added a
+                # flat 1.0 per telemetry message, which overstated runtime ~20x.
                 self.profile_store.update_stats(
                     profile_id=profile_id,
                     experience_gained=xp,
                     deaths=deaths,
                     loot_count=loot,
-                    runtime_seconds=r_sec,
+                    runtime_seconds=previous_runtime + elapsed,
+                )
+                # Record a time-series sample so the Statistics page can render a
+                # real historical trend across the session.
+                self.profile_store.add_stat_sample(
+                    profile_id=profile_id,
+                    experience_gained=xp,
+                    loot_count=loot,
+                    hp_pct=int(hp),
                 )
             except Exception:
                 pass
 
-        if hp < 30:
-            self.hp_lbl.setStyleSheet("color: #ef4444; font-weight: bold;")
-        else:
-            self.hp_lbl.setStyleSheet("")
-
     def _on_worker_finished(self) -> None:
-        self.status_lbl.setText("Status: Stopped")
+        self.status_card.set_value("Stopped")
         self.start_btn.setEnabled(True)
         self.pause_btn.setEnabled(False)
         self.pause_btn.setText("Pause")
@@ -394,9 +445,8 @@ class RuntimePage(Page):
         self.terminal.append(alarm_html)
 
         # Flash the status label red
-        self.status_lbl.setStyleSheet("color: #ef4444; font-weight: bold;")
         if alarm_type == "death":
-            self.status_lbl.setText("Status: 💀 CHARACTER DEATH DETECTED")
+            self.status_card.set_value("Death detected", alert=True)
             # Update death count in SQLite
             profile_id = self.profile_combo.currentData()
             if profile_id is not None:
@@ -413,9 +463,9 @@ class RuntimePage(Page):
                 except Exception:
                     pass
         elif alarm_type == "disconnect":
-            self.status_lbl.setText("Status: ⚡ CLIENT DISCONNECTED")
+            self.status_card.set_value("Disconnected", alert=True)
         elif alarm_type == "template_match":
-            self.status_lbl.setText("Status: 👁️ VISUAL STATE DETECTED")
+            self.status_card.set_value("Visual state", alert=True)
 
     def _cleanup_launcher(self) -> None:
         """Clean up the worker thread and terminate launcher process."""
@@ -480,15 +530,8 @@ class LogsPage(Page):
         # 5. Log text browser
         self.log_viewer = QTextEdit()
         self.log_viewer.setReadOnly(True)
-        self.log_viewer.setStyleSheet(
-            "background-color: #0b0f19;"
-            "color: #cbd5e1;"
-            "font-family: 'Consolas', 'Courier New', monospace;"
-            "font-size: 10pt;"
-            "border: 1px solid #1e293b;"
-            "border-radius: 4px;"
-            "padding: 8px;"
-        )
+        # Theme-driven console styling (see theme.stylesheet).
+        self.log_viewer.setObjectName("console")
         self.log_viewer.setMinimumHeight(350)
         self.card_layout.addWidget(self.log_viewer)
 
@@ -548,21 +591,112 @@ class LogsPage(Page):
                 QMessageBox.critical(self, "Error", f"Failed to clear log file")
 
 
+def _format_compact(value: float) -> str:
+    """Compact numeric formatting: 1500 -> '1.5k', 2_000_000 -> '2.0M'."""
+    abs_v = abs(value)
+    if abs_v >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    if abs_v >= 1_000:
+        return f"{value / 1_000:.1f}k"
+    return f"{int(value)}"
+
+
+def _repolish(widget) -> None:
+    """Re-apply the stylesheet after a widget's object name or property changed."""
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+
+
+def _format_duration(seconds: float) -> str:
+    """Render a duration compactly, e.g. '45s', '12m 30s', '3h 05m'."""
+    total = int(max(0, seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m"
+    if minutes:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
+
+
+class StatCard(QFrame):
+    """Compact metric tile showing a large value above a small caption."""
+
+    def __init__(self, caption: str, value: str = "--") -> None:
+        super().__init__()
+        self.setObjectName("statCard")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(2)
+
+        self.value_label = QLabel(value)
+        self.value_label.setObjectName("statValue")
+        self.caption_label = QLabel(caption.upper())
+        self.caption_label.setObjectName("statCaption")
+
+        layout.addWidget(self.value_label)
+        layout.addWidget(self.caption_label)
+
+    def set_value(self, value: str, alert: bool = False) -> None:
+        """Update the displayed value, optionally styling it as an alert."""
+        self.value_label.setText(value)
+        self.value_label.setObjectName("statValueAlert" if alert else "statValue")
+        # Re-polish so the freshly assigned object name picks up the stylesheet.
+        _repolish(self.value_label)
+
+
 class StatisticsTrendChart(QWidget):
-    """Draws custom linear line charts of historical XP gains and loot items collected."""
+    """Custom-painted chart of XP gains (line) and loot collected (bars) over time.
+
+    Works both for a historical series (``set_data``) and for a live runtime feed
+    (``append_sample``). Colours follow the active light/dark application theme.
+    """
+
+    #: Maximum number of samples retained for the live buffer.
+    #: At the Runtime page's one-sample-per-second throttle this is ~10 minutes.
+    MAX_POINTS = 600
 
     def __init__(self) -> None:
         super().__init__()
-        self.setMinimumHeight(240)
+        self.setMinimumHeight(220)
         self.xp_data = [0]
         self.loot_data = [0]
         self.hover_x = -1
+        # Tracks whether the series still holds the initial placeholder point.
+        # Comparing the data itself would misfire for a session that legitimately
+        # starts at zero, silently discarding the opening samples.
+        self._awaiting_first_sample = True
         self.setMouseTracking(True)  # Enable hover mouse movement tracking
 
     def set_data(self, xp_history: list[int], loot_history: list[int]) -> None:
-        self.xp_data = xp_history if xp_history else [0]
-        self.loot_data = loot_history if loot_history else [0]
+        """Replace the full series (used by the historical Statistics view)."""
+        self.xp_data = list(xp_history) if xp_history else [0]
+        self.loot_data = list(loot_history) if loot_history else [0]
+        self._awaiting_first_sample = False
         self.update()  # Request Qt canvas repaint event
+
+    def append_sample(self, xp: int, loot: int) -> None:
+        """Append one live telemetry point, trimming to ``MAX_POINTS``."""
+        # A fresh live session starts from the placeholder [0]; drop it once real
+        # data arrives so the trend does not begin with a spurious flat segment.
+        if self._awaiting_first_sample:
+            self.xp_data = []
+            self.loot_data = []
+            self._awaiting_first_sample = False
+        self.xp_data.append(int(xp))
+        self.loot_data.append(int(loot))
+        if len(self.xp_data) > self.MAX_POINTS:
+            self.xp_data = self.xp_data[-self.MAX_POINTS :]
+            self.loot_data = self.loot_data[-self.MAX_POINTS :]
+        self.update()
+
+    def reset_live(self) -> None:
+        """Clear the buffer back to the empty placeholder state."""
+        self.xp_data = [0]
+        self.loot_data = [0]
+        self.hover_x = -1
+        self._awaiting_first_sample = True
+        self.update()
 
     def mouseMoveEvent(self, event) -> None:
         self.hover_x = event.position().x()
@@ -572,87 +706,294 @@ class StatisticsTrendChart(QWidget):
         self.hover_x = -1
         self.update()
 
+    @staticmethod
+    def _format_value(value: float) -> str:
+        """Compact axis/tooltip formatting: 1500 -> '1.5k', 2_000_000 -> '2.0M'."""
+        return _format_compact(value)
+
+    def _theme_palette(self) -> dict:
+        """Return chart colours matching the active application theme."""
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        theme_value = app.property("midgard_theme") if app is not None else None
+        is_dark = theme_value != "light"  # default to dark when unset
+
+        if is_dark:
+            return {
+                "surface": QColor("#141c29"),
+                "grid": QColor(255, 255, 255, 28),
+                "axis": QColor("#3a4a63"),
+                "text": QColor("#e8edf5"),
+                "muted": QColor("#8f9bad"),
+                "xp": QColor("#3fd08f"),
+                "loot": QColor(88, 152, 219, 150),
+                "guide": QColor("#e0863a"),
+                "bubble": QColor(8, 12, 20, 225),
+                "bubble_text": QColor("#f2f5fa"),
+            }
+        return {
+            "surface": QColor("#ffffff"),
+            "grid": QColor(0, 0, 0, 22),
+            "axis": QColor("#c3ccd6"),
+            "text": QColor("#17202e"),
+            "muted": QColor("#687588"),
+            "xp": QColor("#0f9d63"),
+            "loot": QColor(52, 120, 190, 120),
+            "guide": QColor("#d97828"),
+            "bubble": QColor(23, 32, 46, 235),
+            "bubble_text": QColor("#f2f5fa"),
+        }
+
     def paintEvent(self, event) -> None:
-        from PySide6.QtGui import QPainter, QPen, QColor, QFont
-        from PySide6.QtCore import Qt, QRectF
-        
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QFont, QPainter, QPen
+
+        pal = self._theme_palette()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        # Fill chart area background
+
         w, h = self.width(), self.height()
-        painter.fillRect(0, 0, w, h, QColor(30, 30, 35))
-        
-        # Grid line bounds
-        pad_l, pad_t, pad_r, pad_b = 50, 20, 20, 30
+        # Rounded card-style background.
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(pal["surface"])
+        painter.drawRoundedRect(0, 0, w - 1, h - 1, 10, 10)
+
+        pad_l, pad_t, pad_r, pad_b = 54, 18, 16, 46
         chart_w = w - pad_l - pad_r
         chart_h = h - pad_t - pad_b
-        
-        # Draw background grid lines
-        grid_pen = QPen(QColor(60, 60, 65), 1, Qt.PenStyle.DashLine)
-        painter.setPen(grid_pen)
-        for i in range(5):
-            gy = pad_t + int(chart_h * i / 4)
-            painter.drawLine(pad_l, gy, w - pad_r, gy)
-            
-        # Draw axis bounds
-        axis_pen = QPen(QColor(150, 150, 160), 2)
-        painter.setPen(axis_pen)
-        painter.drawLine(pad_l, pad_t, pad_l, h - pad_b)
-        painter.drawLine(pad_l, h - pad_b, w - pad_r, h - pad_b)
-        
-        # Draw XP Line (Green)
-        max_xp = max(self.xp_data) if max(self.xp_data) > 0 else 100
-        xp_points = []
-        for i, val in enumerate(self.xp_data):
-            cx = pad_l + int(chart_w * i / max(1, len(self.xp_data) - 1))
-            cy = h - pad_b - int(chart_h * val / max_xp)
-            xp_points.append((cx, cy))
-            
-        xp_pen = QPen(QColor(46, 204, 113), 2)
-        painter.setPen(xp_pen)
-        for i in range(len(xp_points) - 1):
-            p1 = xp_points[i]
-            p2 = xp_points[i + 1]
-            painter.drawLine(p1[0], p1[1], p2[0], p2[1])
+        if chart_w <= 10 or chart_h <= 10:
+            return
 
-        # Draw Loot Bars (Blue)
-        max_loot = max(self.loot_data) if max(self.loot_data) > 0 else 10
-        bar_w = max(5, int(chart_w / (2 * max(1, len(self.loot_data)))))
+        base_y = h - pad_b
+        n = len(self.xp_data)
+        max_xp = max(self.xp_data) if self.xp_data else 0
+        max_loot = max(self.loot_data) if self.loot_data else 0
+        is_empty = max_xp == 0 and max_loot == 0
+
+        small_font = QFont("Segoe UI", 8)
+        painter.setFont(small_font)
+
+        # --- Horizontal grid lines with XP-scaled numeric labels ---
+        scale_xp = max_xp if max_xp > 0 else 1
+        for k in range(5):
+            frac = k / 4
+            gy = int(pad_t + chart_h * frac)
+            painter.setPen(QPen(pal["grid"], 1, Qt.PenStyle.DashLine))
+            painter.drawLine(pad_l, gy, w - pad_r, gy)
+            label = self._format_value(scale_xp * (1 - frac))
+            painter.setPen(pal["muted"])
+            painter.drawText(4, gy + 4, pad_l - 8, 12, Qt.AlignmentFlag.AlignRight, label)
+
+        # --- Axes ---
+        painter.setPen(QPen(pal["axis"], 1))
+        painter.drawLine(pad_l, pad_t, pad_l, base_y)
+        painter.drawLine(pad_l, base_y, w - pad_r, base_y)
+
+        def x_at(i: int) -> int:
+            if n <= 1:
+                return pad_l + chart_w // 2
+            return pad_l + int(chart_w * i / (n - 1))
+
+        if is_empty:
+            painter.setPen(pal["muted"])
+            painter.setFont(QFont("Segoe UI", 10))
+            painter.drawText(
+                pad_l,
+                pad_t,
+                chart_w,
+                chart_h,
+                Qt.AlignmentFlag.AlignCenter,
+                "Waiting for runtime telemetry…",
+            )
+            return
+
+        # --- Loot bars (drawn behind the XP line) ---
+        loot_scale = max_loot if max_loot > 0 else 1
+        slot = chart_w / max(1, n)
+        bar_w = max(2, int(slot * 0.55))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(pal["loot"])
         for i, val in enumerate(self.loot_data):
-            cx = pad_l + int(chart_w * i / max(1, len(self.loot_data))) + bar_w // 2
-            bar_h = int(chart_h * val / max_loot)
-            painter.fillRect(cx, h - pad_b - bar_h, bar_w, bar_h, QColor(52, 152, 219))
-            
-        # Draw Interactive Hover Tooltip (TASK-031)
-        if self.hover_x >= pad_l and self.hover_x <= w - pad_r:
-            # Map hover_x to nearest index
-            total_elements = len(self.xp_data)
-            index = int(round((self.hover_x - pad_l) / chart_w * (total_elements - 1)))
-            index = max(0, min(index, total_elements - 1))
-            
-            # Retrieve values
+            if val <= 0:
+                continue
+            bar_h = int(chart_h * val / loot_scale)
+            cx = x_at(i) - bar_w // 2
+            painter.drawRect(cx, base_y - bar_h, bar_w, bar_h)
+
+        # --- XP line ---
+        xp_scale = max_xp if max_xp > 0 else 1
+        points = [
+            (x_at(i), base_y - int(chart_h * val / xp_scale)) for i, val in enumerate(self.xp_data)
+        ]
+        painter.setPen(QPen(pal["xp"], 2))
+        if len(points) == 1:
+            px, py = points[0]
+            painter.setBrush(pal["xp"])
+            painter.drawEllipse(px - 3, py - 3, 6, 6)
+        else:
+            for i in range(len(points) - 1):
+                p1, p2 = points[i], points[i + 1]
+                painter.drawLine(p1[0], p1[1], p2[0], p2[1])
+
+        # --- Hover guide + tooltip ---
+        if n >= 1 and pad_l <= self.hover_x <= w - pad_r:
+            index = int(round((self.hover_x - pad_l) / chart_w * (n - 1))) if n > 1 else 0
+            index = max(0, min(index, n - 1))
             curr_xp = self.xp_data[index]
             curr_loot = self.loot_data[index]
-            target_x = pad_l + int(chart_w * index / max(1, total_elements - 1))
-            
-            # Draw vertical guide line
-            guide_pen = QPen(QColor(230, 126, 34), 1, Qt.PenStyle.SolidLine)
-            painter.setPen(guide_pen)
-            painter.drawLine(target_x, pad_t, target_x, h - pad_b)
-            
-            # Tooltip details bubble
-            painter.fillRect(target_x - 50, pad_t + 40, 110, 45, QColor(0, 0, 0, 200))
-            painter.setPen(QColor(255, 255, 255))
-            painter.setFont(QFont("Arial", 8))
-            painter.drawText(target_x - 45, pad_t + 55, f"XP: {curr_xp}")
-            painter.drawText(target_x - 45, pad_t + 70, f"Loot: {curr_loot} items")
-            
-        # Text annotations
-        painter.setPen(QColor(255, 255, 255))
-        painter.setFont(QFont("Arial", 8))
-        painter.drawText(pad_l + 10, pad_t + 15, "XP Trend (Green Line)")
-        painter.drawText(pad_l + 10, pad_t + 30, "Loot Bar (Blue Bars)")
+            target_x = x_at(index)
+
+            painter.setPen(QPen(pal["guide"], 1))
+            painter.drawLine(target_x, pad_t, target_x, base_y)
+
+            bubble_w, bubble_h = 116, 44
+            bx = min(max(target_x - bubble_w // 2, pad_l), w - pad_r - bubble_w)
+            by = pad_t + 6
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(pal["bubble"])
+            painter.drawRoundedRect(bx, by, bubble_w, bubble_h, 6, 6)
+            painter.setPen(pal["bubble_text"])
+            painter.setFont(small_font)
+            painter.drawText(bx + 10, by + 18, f"XP: {self._format_value(curr_xp)}")
+            painter.drawText(bx + 10, by + 34, f"Loot: {curr_loot} items")
+
+        # --- Legend below the axis ---
+        legend_y = h - pad_b + 22
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(pal["xp"])
+        painter.drawRect(pad_l, legend_y - 8, 14, 4)
+        painter.setPen(pal["muted"])
+        painter.setFont(small_font)
+        painter.drawText(pad_l + 20, legend_y, "XP gained")
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(pal["loot"])
+        painter.drawRect(pad_l + 100, legend_y - 10, 12, 10)
+        painter.setPen(pal["muted"])
+        painter.drawText(pad_l + 118, legend_y, "Loot collected")
+
+
+class NavigationMapView(QWidget):
+    """Renders the configured waypoint route as a numbered, connected path.
+
+    Uses the same flat coordinate space the runtime uses for waypoints, so the
+    preview matches how the engine walks the route. Colours follow the theme.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setMinimumSize(420, 360)
+        self.waypoints: list[tuple[int, int]] = []
+
+    def set_waypoints(self, waypoints: list[tuple[int, int]]) -> None:
+        self.waypoints = [(int(x), int(y)) for x, y in waypoints]
+        self.update()
+
+    def _theme_is_dark(self) -> bool:
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        return (app.property("midgard_theme") if app is not None else None) != "light"
+
+    def paintEvent(self, event) -> None:
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QColor, QFont, QPainter, QPen
+
+        is_dark = self._theme_is_dark()
+        surface = QColor("#141c29") if is_dark else QColor("#ffffff")
+        grid = QColor(255, 255, 255, 20) if is_dark else QColor(0, 0, 0, 18)
+        muted = QColor("#8f9bad") if is_dark else QColor("#687588")
+        line = QColor("#58d2b0") if is_dark else QColor("#0f9d63")
+        start_c = QColor("#3fd08f")
+        end_c = QColor("#f2635f")
+        dot = QColor("#e0a33a")
+        text_c = QColor("#e8edf5") if is_dark else QColor("#17202e")
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(surface)
+        painter.drawRoundedRect(0, 0, w - 1, h - 1, 10, 10)
+
+        pad = 28
+        area_w, area_h = w - 2 * pad, h - 2 * pad
+        if area_w <= 20 or area_h <= 20:
+            return
+
+        # Light reference grid.
+        painter.setPen(QPen(grid, 1))
+        for i in range(1, 4):
+            gx = pad + area_w * i // 4
+            gy = pad + area_h * i // 4
+            painter.drawLine(gx, pad, gx, pad + area_h)
+            painter.drawLine(pad, gy, pad + area_w, gy)
+
+        if not self.waypoints:
+            painter.setPen(muted)
+            painter.setFont(QFont("Segoe UI", 10))
+            painter.drawText(
+                pad,
+                pad,
+                area_w,
+                area_h,
+                Qt.AlignmentFlag.AlignCenter,
+                "No waypoints configured.\nAdd them as x,y,wait;x,y,wait",
+            )
+            return
+
+        xs = [p[0] for p in self.waypoints]
+        ys = [p[1] for p in self.waypoints]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        span_x = max(1, max_x - min_x)
+        span_y = max(1, max_y - min_y)
+
+        def to_screen(px: int, py: int) -> tuple[int, int]:
+            # Uniform scale preserves the route's real proportions; y grows
+            # downward to match the game's client coordinate space.
+            scale = min(area_w / span_x, area_h / span_y)
+            ox = pad + (area_w - span_x * scale) / 2
+            oy = pad + (area_h - span_y * scale) / 2
+            return int(ox + (px - min_x) * scale), int(oy + (py - min_y) * scale)
+
+        points = [to_screen(px, py) for px, py in self.waypoints]
+
+        # Connecting route line.
+        painter.setPen(QPen(line, 2))
+        for i in range(len(points) - 1):
+            painter.drawLine(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1])
+
+        # Waypoint markers, numbered in walk order.
+        painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+        for i, (sx, sy) in enumerate(points):
+            if i == 0:
+                colour = start_c
+            elif i == len(points) - 1:
+                colour = end_c
+            else:
+                colour = dot
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(colour)
+            painter.drawEllipse(sx - 9, sy - 9, 18, 18)
+            painter.setPen(QColor("#0c111b"))
+            painter.drawText(
+                sx - 9, sy - 9, 18, 18, Qt.AlignmentFlag.AlignCenter, str(i + 1)
+            )
+
+        # Caption with the coordinate range.
+        painter.setPen(muted)
+        painter.setFont(QFont("Segoe UI", 8))
+        painter.drawText(
+            pad,
+            h - pad + 6,
+            area_w,
+            18,
+            Qt.AlignmentFlag.AlignLeft,
+            f"{len(points)} waypoints · X {min_x}–{max_x} · Y {min_y}–{max_y}",
+        )
+        painter.setPen(text_c)
 
 
 class StatisticsPage(Page):
@@ -678,23 +1019,22 @@ class StatisticsPage(Page):
         selector_layout.addWidget(self.profile_combo, 1)
         self.card_layout.addLayout(selector_layout)
 
-        # 2. Stats summary cards layout
+        # 2. Stats summary cards laid out as a responsive grid of metric tiles
         self.stats_layout = QVBoxLayout()
         self.stats_layout.setSpacing(12)
 
-        self.xp_card = QLabel("XP Accumulated: --")
-        self.xp_card.setStyleSheet("font-size: 11pt; padding: 4px;")
-        self.loot_card = QLabel("Total Loot Collected: --")
-        self.loot_card.setStyleSheet("font-size: 11pt; padding: 4px;")
-        self.deaths_card = QLabel("Character Deaths: --")
-        self.deaths_card.setStyleSheet("font-size: 11pt; padding: 4px;")
-        self.time_card = QLabel("Runtime: -- minutes")
-        self.time_card.setStyleSheet("font-size: 11pt; padding: 4px;")
+        self.xp_card = StatCard("XP Accumulated")
+        self.loot_card = StatCard("Loot Collected")
+        self.deaths_card = StatCard("Deaths")
+        self.time_card = StatCard("Runtime")
 
-        self.stats_layout.addWidget(self.xp_card)
-        self.stats_layout.addWidget(self.loot_card)
-        self.stats_layout.addWidget(self.deaths_card)
-        self.stats_layout.addWidget(self.time_card)
+        cards_grid = QGridLayout()
+        cards_grid.setSpacing(10)
+        cards_grid.addWidget(self.xp_card, 0, 0)
+        cards_grid.addWidget(self.loot_card, 0, 1)
+        cards_grid.addWidget(self.deaths_card, 1, 0)
+        cards_grid.addWidget(self.time_card, 1, 1)
+        self.stats_layout.addLayout(cards_grid)
 
         # Add Live Performance Trend Chart widget (TASK-030)
         self.trend_chart = StatisticsTrendChart()
@@ -722,26 +1062,164 @@ class StatisticsPage(Page):
         """Fetch stats for selected profile and update UI labels."""
         profile_id = self.profile_combo.currentData()
         if profile_id is None:
-            self.xp_card.setText("XP Accumulated: --")
-            self.loot_card.setText("Total Loot Collected: --")
-            self.deaths_card.setText("Character Deaths: --")
-            self.time_card.setText("Runtime: -- minutes")
+            for card in (self.xp_card, self.loot_card, self.deaths_card, self.time_card):
+                card.set_value("--")
             self.trend_chart.set_data([0], [0])
             return
 
         profile = self.profile_store.get_profile(profile_id)
         if profile and profile.stats:
             stats = profile.stats
-            runtime_mins = round(stats.runtime_seconds / 60.0, 1)
-            self.xp_card.setText(f"XP Accumulated: {stats.experience_gained} XP")
-            self.loot_card.setText(f"Total Loot Collected: {stats.loot_count} items")
-            self.deaths_card.setText(f"Character Deaths: {stats.deaths} deaths")
-            self.time_card.setText(f"Runtime: {runtime_mins} minutes")
-            
-            # Fetch simulated trend history intervals
-            simulated_xp_history = [0, int(stats.experience_gained * 0.25), int(stats.experience_gained * 0.6), stats.experience_gained]
-            simulated_loot_history = [0, int(stats.loot_count * 0.3), int(stats.loot_count * 0.7), stats.loot_count]
-            self.trend_chart.set_data(simulated_xp_history, simulated_loot_history)
+            self.xp_card.set_value(f"{stats.experience_gained:,}")
+            self.loot_card.set_value(f"{stats.loot_count:,}")
+            self.deaths_card.set_value(f"{stats.deaths:,}", alert=stats.deaths > 0)
+            self.time_card.set_value(_format_duration(stats.runtime_seconds))
+
+            # Load the real recorded time series; fall back to a simple
+            # start -> current cumulative pair when no samples exist yet.
+            samples = self.profile_store.get_stat_samples(profile_id)
+            if samples:
+                xp_history = [s[0] for s in samples]
+                loot_history = [s[1] for s in samples]
+            elif stats.experience_gained > 0 or stats.loot_count > 0:
+                xp_history = [0, stats.experience_gained]
+                loot_history = [0, stats.loot_count]
+            else:
+                xp_history = [0]
+                loot_history = [0]
+            self.trend_chart.set_data(xp_history, loot_history)
+
+
+class DashboardPage(Page):
+    """Operational overview aggregating real data across every character profile."""
+
+    # Automation modules and the (rule category, enabled key) that activates each.
+    MODULES = [
+        ("Healing", "healing", "heal.enabled"),
+        ("Experience", "experience", "experience.enabled"),
+        ("Looting", "looting", "loot.enabled"),
+        ("Combat", "combat", "combat.enabled"),
+        ("Navigation", "navigation", "navigation.enabled"),
+        ("Consumables", "consumables", "consumables.enabled"),
+        ("Stash", "stash", "stash.enabled"),
+        ("Security", "security", "security.enabled"),
+    ]
+
+    def __init__(self, profile_store: ProfileStore) -> None:
+        super().__init__(
+            "Dashboard",
+            "Operational overview of your Midgard Studio profiles.",
+            "Aggregate Statistics",
+            "Combined totals across every character profile stored locally.",
+            card_eyebrow="OVERVIEW",
+        )
+        self.profile_store = profile_store
+
+        # Aggregate metric tiles (all profiles combined).
+        self.profiles_card = StatCard("Profiles")
+        self.xp_card = StatCard("Total XP")
+        self.loot_card = StatCard("Total Loot")
+        self.deaths_card = StatCard("Total Deaths")
+        self.runtime_card = StatCard("Total Runtime")
+
+        grid = QGridLayout()
+        grid.setSpacing(10)
+        for col, card in enumerate(
+            (self.profiles_card, self.xp_card, self.loot_card, self.deaths_card, self.runtime_card)
+        ):
+            grid.addWidget(card, 0, col)
+        self.card_layout.addLayout(grid)
+
+        # Per-profile module-configuration overview.
+        overview_card = QFrame()
+        overview_card.setObjectName("contentCard")
+        overview_layout = QVBoxLayout(overview_card)
+        overview_layout.setContentsMargins(20, 18, 20, 18)
+        overview_layout.setSpacing(10)
+
+        header = QLabel("Profiles & Configured Modules")
+        header.setObjectName("cardTitle")
+        overview_layout.addWidget(header)
+
+        self.profiles_container = QVBoxLayout()
+        self.profiles_container.setSpacing(10)
+        overview_layout.addLayout(self.profiles_container)
+
+        self._empty_label = QLabel(
+            "No profiles yet. Create one on the Profiles page to get started."
+        )
+        self._empty_label.setObjectName("cardBody")
+        self._empty_label.setWordWrap(True)
+        overview_layout.addWidget(self._empty_label)
+
+        # Insert the overview card just above the trailing stretch of the page.
+        layout = self.layout()
+        layout.insertWidget(layout.count() - 1, overview_card)
+
+        self._refresh()
+
+    def showEvent(self, event) -> None:
+        """Refresh aggregate data whenever the dashboard is shown."""
+        super().showEvent(event)
+        self._refresh()
+
+    def _clear_profiles_container(self) -> None:
+        while self.profiles_container.count():
+            item = self.profiles_container.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _build_profile_row(self, profile) -> QFrame:
+        """One row: profile name/class plus a chip per configured module."""
+        row = QFrame()
+        row.setObjectName("statCard")
+        row_layout = QVBoxLayout(row)
+        row_layout.setContentsMargins(14, 10, 14, 10)
+        row_layout.setSpacing(6)
+
+        title = QLabel(f"{profile.name}  ·  {profile.character_class}")
+        title.setObjectName("sectionTitle")
+        row_layout.addWidget(title)
+
+        modules_row = QHBoxLayout()
+        modules_row.setSpacing(14)
+        any_on = False
+        for label, category, enabled_key in self.MODULES:
+            enabled = profile.rules.get(category, {}).get(enabled_key, "false").lower() == "true"
+            any_on = any_on or enabled
+            chip = QLabel(f"{'●' if enabled else '○'} {label}")
+            chip.setObjectName("moduleOn" if enabled else "moduleOff")
+            modules_row.addWidget(chip)
+        modules_row.addStretch(1)
+        row_layout.addLayout(modules_row)
+
+        if not any_on:
+            hint = QLabel("No automation modules enabled for this profile.")
+            hint.setObjectName("moduleOff")
+            row_layout.addWidget(hint)
+
+        return row
+
+    def _refresh(self) -> None:
+        """Recompute aggregates and rebuild the per-profile overview."""
+        profiles = self.profile_store.list_profiles()
+
+        total_xp = sum(p.stats.experience_gained for p in profiles)
+        total_loot = sum(p.stats.loot_count for p in profiles)
+        total_deaths = sum(p.stats.deaths for p in profiles)
+        total_runtime = sum(p.stats.runtime_seconds for p in profiles)
+
+        self.profiles_card.set_value(str(len(profiles)))
+        self.xp_card.set_value(_format_compact(total_xp))
+        self.loot_card.set_value(_format_compact(total_loot))
+        self.deaths_card.set_value(str(total_deaths), alert=total_deaths > 0)
+        self.runtime_card.set_value(_format_duration(total_runtime))
+
+        self._clear_profiles_container()
+        self._empty_label.setVisible(not profiles)
+        for profile in profiles:
+            self.profiles_container.addWidget(self._build_profile_row(profile))
 
 
 class AboutPage(Page):
@@ -808,6 +1286,7 @@ class ProfilesPage(Page):
         self._init_healing_tab()
         self._init_consumables_tab()
         self._init_looting_tab()
+        self._init_experience_tab()
         self._init_combat_tab()
         self._init_navigation_tab()
         self._init_security_tab()
@@ -1077,6 +1556,64 @@ class ProfilesPage(Page):
 
         self.tab_widget.addTab(tab, "Looting")
 
+    def _init_experience_tab(self) -> None:
+        tab = QWidget()
+        layout = QFormLayout(tab)
+
+        self.exp_enabled = QCheckBox("Enable Experience Tracking (OCR)")
+
+        self.exp_x = QSpinBox()
+        self.exp_x.setRange(0, 10000)
+        self.exp_y = QSpinBox()
+        self.exp_y.setRange(0, 10000)
+        self.exp_w = QSpinBox()
+        self.exp_w.setRange(1, 10000)
+        self.exp_w.setValue(120)
+        self.exp_h = QSpinBox()
+        self.exp_h.setRange(1, 10000)
+        self.exp_h.setValue(16)
+
+        self.exp_interval = QDoubleSpinBox()
+        self.exp_interval.setRange(0.2, 60.0)
+        self.exp_interval.setValue(2.0)
+        self.exp_interval.setSingleStep(0.5)
+
+        self.exp_max_delta = QSpinBox()
+        self.exp_max_delta.setRange(0, 100_000_000)
+        self.exp_max_delta.setValue(0)
+
+        layout.addRow(self.exp_enabled)
+        layout.addRow(
+            QLabel(
+                "Select the on-screen region showing the numeric EXP value.\n"
+                "The tracker reads it periodically and accumulates the increases."
+            )
+        )
+
+        region_layout = QHBoxLayout()
+        region_layout.addWidget(QLabel("X:"))
+        region_layout.addWidget(self.exp_x)
+        region_layout.addWidget(QLabel("Y:"))
+        region_layout.addWidget(self.exp_y)
+        region_layout.addWidget(QLabel("W:"))
+        region_layout.addWidget(self.exp_w)
+        region_layout.addWidget(QLabel("H:"))
+        region_layout.addWidget(self.exp_h)
+
+        self.exp_pick_btn = QPushButton("Select EXP Region")
+        self.exp_pick_btn.clicked.connect(self._pick_experience_region)
+        region_layout.addWidget(self.exp_pick_btn)
+
+        layout.addRow("EXP Region", region_layout)
+        layout.addRow("Sample Interval (s)", self.exp_interval)
+        layout.addRow("Max Gain per Sample (0 = no limit)", self.exp_max_delta)
+
+        self.exp_verify_btn = QPushButton("Verify EXP Reading")
+        self.exp_verify_btn.clicked.connect(self._verify_experience_region)
+        layout.addRow(self.exp_verify_btn)
+
+        self.tab_widget.addTab(tab, "Experience")
+
     def _init_combat_tab(self) -> None:
         tab = QWidget()
         layout = QFormLayout(tab)
@@ -1266,6 +1803,10 @@ class ProfilesPage(Page):
         file_actions_layout.addWidget(load_path_btn)
         layout.addLayout(file_actions_layout)
 
+        preview_btn = QPushButton("Preview Route Map")
+        preview_btn.clicked.connect(self._preview_navigation_route)
+        layout.addWidget(preview_btn)
+
         # Custom Script Loader Settings Row (TASK-034)
         layout.addWidget(QLabel("<b>Custom Script Hot-Plugin Loader (.py)</b>"))
         script_layout = QFormLayout()
@@ -1443,6 +1984,15 @@ class ProfilesPage(Page):
         self.status_color_b.setValue(int(cons.get("consumables.status_color_b", "255")))
 
         # Load Looting rules
+        exp = rules.get("experience", {})
+        self.exp_enabled.setChecked(exp.get("experience.enabled", "false").lower() == "true")
+        self.exp_x.setValue(int(exp.get("experience.x", "0")))
+        self.exp_y.setValue(int(exp.get("experience.y", "0")))
+        self.exp_w.setValue(int(exp.get("experience.w", "120")))
+        self.exp_h.setValue(int(exp.get("experience.h", "16")))
+        self.exp_interval.setValue(float(exp.get("experience.interval", "2.0")))
+        self.exp_max_delta.setValue(int(exp.get("experience.max_delta", "0")))
+
         loot = rules.get("looting", {})
         self.loot_enabled.setChecked(loot.get("loot.enabled", "false").lower() == "true")
         self.loot_color_r.setValue(int(loot.get("loot.color.r", "220")))
@@ -1654,6 +2204,30 @@ class ProfilesPage(Page):
             )
 
             # Save Looting rules
+            self.profile_store.set_rule(
+                profile_id,
+                "experience",
+                "experience.enabled",
+                str(self.exp_enabled.isChecked()).lower(),
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.x", str(self.exp_x.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.y", str(self.exp_y.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.w", str(self.exp_w.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.h", str(self.exp_h.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.interval", str(self.exp_interval.value())
+            )
+            self.profile_store.set_rule(
+                profile_id, "experience", "experience.max_delta", str(self.exp_max_delta.value())
+            )
             self.profile_store.set_rule(
                 profile_id, "looting", "loot.enabled", str(self.loot_enabled.isChecked()).lower()
             )
@@ -1881,21 +2455,12 @@ class ProfilesPage(Page):
 
         try:
             capture_service = WindowCaptureService.from_title(profile.window_title)
-            pil_img = capture_service.capture()
-            # Convert PIL Image to QPixmap
-            pil_img = pil_img.convert("RGBA")
-            data = bytes(pil_img.tobytes("raw", "RGBA"))
-            qimg = QImage(data, pil_img.width(), pil_img.height(), QImage.Format.Format_RGBA8888)
-            return QPixmap.fromImage(qimg)
+            return self._pil_to_qpixmap(capture_service.capture())
         except Exception as e:
             # Fallback final: Try connecting using the bare profile name as title (TASK-035)
             try:
                 capture_service = WindowCaptureService.from_title(profile.name)
-                pil_img = capture_service.capture()
-                pil_img = pil_img.convert("RGBA")
-                data = bytes(pil_img.tobytes("raw", "RGBA"))
-                qimg = QImage(data, pil_img.width(), pil_img.height(), QImage.Format.Format_RGBA8888)
-                return QPixmap.fromImage(qimg)
+                return self._pil_to_qpixmap(capture_service.capture())
             except Exception:
                 pass
 
@@ -1940,6 +2505,113 @@ class ProfilesPage(Page):
                     self.heal_sp_w.setValue(dialog.selected_w)
                     self.heal_sp_h.setValue(dialog.selected_h)
 
+    @staticmethod
+    def _pixmap_to_pil(pixmap) -> Image.Image:
+        """Convert a captured QPixmap into a PIL image for the vision helpers."""
+        qimg = pixmap.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+        img_bytes = qimg.constBits().tobytes()
+        return Image.frombytes("RGBA", (qimg.width(), qimg.height()), img_bytes)
+
+    @staticmethod
+    def _pil_to_qpixmap(pil_img: Image.Image) -> QPixmap:
+        """Convert a PIL image into a QPixmap.
+
+        Note: PIL exposes ``width``/``height`` as int attributes, not methods.
+        Calling them (``pil_img.width()``) raises ``'int' object is not callable``,
+        which previously broke every game-window capture and forced the primary-
+        screen fallback.
+        """
+        rgba = pil_img.convert("RGBA")
+        data = bytes(rgba.tobytes("raw", "RGBA"))
+        qimg = QImage(data, rgba.width, rgba.height, QImage.Format.Format_RGBA8888)
+        return QPixmap.fromImage(qimg)
+
+    def _preview_navigation_route(self) -> None:
+        """Show the configured waypoints as a route map for visual verification."""
+        from midgard.runtime.input import DummyInputAdapter
+        from midgard.runtime.navigation import NavigationModule
+
+        raw = self.nav_waypoints_text.toPlainText().strip()
+        # Reuse the runtime parser so the preview matches how the engine reads the
+        # route, including JSON path-file support.
+        module = NavigationModule(
+            {"navigation.enabled": "true", "navigation.waypoints": raw},
+            DummyInputAdapter(),
+            hwnd=0,
+        )
+        waypoints = [(wx, wy) for wx, wy, _wait in module.waypoints]
+
+        if not waypoints:
+            QMessageBox.information(
+                self,
+                "Route Preview",
+                "No waypoints to preview. Add them as x,y,wait;x,y,wait "
+                "or load a path file first.",
+            )
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Navigation Route Preview")
+        dialog.setMinimumSize(560, 520)
+        dlg_layout = QVBoxLayout(dialog)
+
+        view = NavigationMapView()
+        view.set_waypoints(waypoints)
+        dlg_layout.addWidget(view, 1)
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.accept)
+        dlg_layout.addWidget(close_btn)
+
+        dialog.exec()
+
+    def _pick_experience_region(self) -> None:
+        """Capture the EXP counter bounding box coordinates and size."""
+        pixmap = self._capture_game_window()
+        if pixmap is None:
+            return
+        dialog = PickDialog(pixmap, self)
+        if dialog.exec() == QDialog.Accepted:
+            if dialog.selected_x is not None:
+                self.exp_x.setValue(dialog.selected_x)
+                self.exp_y.setValue(dialog.selected_y)
+                if dialog.selected_w is not None and dialog.selected_w > 0:
+                    self.exp_w.setValue(dialog.selected_w)
+                    self.exp_h.setValue(dialog.selected_h)
+
+    def _verify_experience_region(self) -> None:
+        """Read the configured EXP region once and report what OCR resolved."""
+        pixmap = self._capture_game_window()
+        if pixmap is None:
+            return
+        try:
+            from midgard.runtime.experience import ExperienceTracker
+
+            image = self._pixmap_to_pil(pixmap)
+            tracker = ExperienceTracker(
+                {
+                    "experience.enabled": "true",
+                    "experience.x": str(self.exp_x.value()),
+                    "experience.y": str(self.exp_y.value()),
+                    "experience.w": str(self.exp_w.value()),
+                    "experience.h": str(self.exp_h.value()),
+                }
+            )
+            value = tracker.read_value(image)
+        except Exception as exc:
+            QMessageBox.critical(self, "Verify EXP", f"Failed to read region: {exc}")
+            return
+
+        if value is None:
+            QMessageBox.warning(
+                self,
+                "Verify EXP",
+                "No number could be read from the selected region.\n"
+                "Adjust the region so it tightly frames the EXP digits.",
+            )
+        else:
+            QMessageBox.information(self, "Verify EXP", f"OCR resolved the value: {value}")
+
     def _verify_healing_crops(self) -> None:
         """Capture the current frame, crop HP/SP bounding boxes, parse them with OCR, and show visual dialog."""
         pixmap = self._capture_game_window()
@@ -1947,14 +2619,8 @@ class ProfilesPage(Page):
             return
 
         # Convert QPixmap to PIL image
-        qimg = pixmap.toImage()
-        qimg = qimg.convertToFormat(QImage.Format.Format_RGBA8888)
-        img_w, img_h = qimg.width(), qimg.height()
-        
-        # Read raw image pointer bytes using PySide memory buffer parsing
-        ptr = qimg.constBits()
-        img_bytes = ptr.tobytes()
-        pil_img = Image.frombytes("RGBA", (img_w, img_h), img_bytes)
+        pil_img = self._pixmap_to_pil(pixmap)
+        img_w, img_h = pil_img.size
 
         # 1. HP Crop Processing
         hp_x, hp_y = self.heal_hp_x.value(), self.heal_hp_y.value()

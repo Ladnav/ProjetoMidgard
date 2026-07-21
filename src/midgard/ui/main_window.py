@@ -20,8 +20,8 @@ from midgard.profile import ProfileStore
 from midgard.settings import SettingsStore
 from midgard.ui.pages import (
     AboutPage,
+    DashboardPage,
     LogsPage,
-    Page,
     ProfilesPage,
     RuntimePage,
     SettingsPage,
@@ -93,13 +93,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         page_widgets: dict[str, QWidget] = {
-            "Dashboard": Page(
-                "Dashboard",
-                "A clear starting point for the Midgard Studio workspace.",
-                "Studio foundation ready",
-                "No automation is configured or running. Future capabilities will be added "
-                "only through approved tasks.",
-            ),
+            "Dashboard": DashboardPage(self.profile_store),
             "Profiles": ProfilesPage(self.profile_store),
             "Runtime": RuntimePage(self.profile_store),
             "Statistics": StatisticsPage(self.profile_store),

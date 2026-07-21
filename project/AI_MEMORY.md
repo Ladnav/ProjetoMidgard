@@ -19,9 +19,10 @@ does not override, explicit user instructions or approved task decisions.
 - Gameplay automation is started with a pixel-based `HealModule` checking health state coordinates and executing healing triggers with human-like delays.
 - Documentation is part of the product and must track implementation.
 - The engineering workflow uses uv (or fallback pip), Ruff, pytest, Semantic Versioning, and GitHub Actions.
-- Midgard Studio 0.2.0 has seven page shells, light/dark themes, SQLite-backed preferences, ProfileStore backend, and basic application logging.
-- The Runtime page is a placeholder and contains no runtime logic.
-- Changes must not be merged automatically into `main`.
+- Midgard Studio has an operational Dashboard, an interactive Profiles editor (tabbed rules for Healing, Consumables, Looting, Experience, Combat, Navigation, Security, Stash), a Runtime control page, a Statistics page with a real telemetry chart, Settings, a searchable Logs viewer, and About — with light/dark themes, SQLite-backed preferences, and application logging.
+- The Runtime page controls live automation sessions: it launches the `RuntimeEngine` subprocess, streams telemetry over IPC, and (2026-07-20) throttles chart/database sampling to one sample per second while accumulating real runtime.
+- Implemented automation modules include Heal (pixel + OCR HP/SP), Combat (colour/OpenCV/hover), Navigation (A*, multi-map, custom-script plugins), Loot (colour clusters, nearest label), Consumables/buffs, Stash (Kafra/NPC selling), Anomaly/security, Discord notifications, and an OCR `ExperienceTracker`.
+- Changes must not be merged automatically into `main`; work lands on feature branches via pull request.
 
 ## Working protocol
 
@@ -37,7 +38,17 @@ does not override, explicit user instructions or approved task decisions.
 
 ## Current scope boundary
 
-The graphical application foundation is authorized. Game automation (beyond the basic Heal trigger), map navigation pathfinding, combat target selection, computer vision object detection (like YOLO), OCR text reading, plugin loaders, and AI features remain prohibited unless a later task explicitly approves them. (Window capture, keyboard emulation, and pixel-based Heal monitoring are approved as library/engine foundation.)
+Game automation is implemented and authorized: healing, combat target selection, map navigation
+pathfinding, computer-vision template matching, OCR text reading, a custom-script plugin loader,
+looting, consumables, stash/selling, notifications, and anti-detection input behaviours all exist
+in the runtime. What remains out of scope: machine-learning behaviour, memory reading, cloud sync,
+a plugin marketplace, and automatic updates.
+
+This section previously read "graphical foundation only; automation prohibited," which described
+the TASK-002 milestone and was never updated as tasks 003–035 shipped. It was corrected on
+2026-07-20 with Product Owner approval so that AI contributors are not misled into treating existing
+features as forbidden. See `PROJECT_HISTORY.md` (2026-07-20 documentation reconciliation) for the
+background.
 
 ## Open decisions
 
