@@ -23,9 +23,17 @@ Before beginning another task:
 - **Anti-detection Engineering Decisions.** Computer vision, OCR, and anti-detection were built
   while the external spec still marked them DEFERRED. Decide whether to record them as formal
   approved decisions (see the open decision in `PROJECT_CONTEXT.md`).
-- **Next feature priority.** Candidates raised in conversation include copying proven behaviours
-  from reference bots (pending a concrete feature list from the Product Owner) and tightening the
-  existing modules. No priority is selected yet.
+- **Real OCR engine (Tesseract).** The built-in `DigitRecognizer` is too weak for the LATAM
+  client's font (misreads "100%" as "%"/"9%"), so exact numeric HP/SP/EXP is not reliable. HP/SP
+  healing works fine via the per-column bar-fill reading; exact numbers (and reliable numeric EXP)
+  would need a real OCR engine, which adds a dependency — pending approval.
+- **Continue the live-game test.** HP/SP reading was validated against the official LATAM client
+  (EAC-protected). Still to test end to end: healing actually triggering with real input, then
+  combat and looting. Note the standing account-ban risk on the EAC server.
+- **Memory-reading is out of scope for LATAM.** The reference bot's live map/entity data comes from
+  RAM; the official LATAM client runs Easy Anti-Cheat, so that route would require defeating a
+  kernel anti-cheat and will not be built. Feasible only on a private server without EAC/GameGuard.
+- **Next feature priority.** No priority is selected yet.
 - **Repository lint debt.** The wider codebase carries pre-existing Ruff violations; a cleanup pass
   is unscheduled.
 
