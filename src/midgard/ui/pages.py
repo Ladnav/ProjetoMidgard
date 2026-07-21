@@ -874,6 +874,128 @@ class StatisticsTrendChart(QWidget):
         painter.drawText(pad_l + 118, legend_y, "Loot collected")
 
 
+class NavigationMapView(QWidget):
+    """Renders the configured waypoint route as a numbered, connected path.
+
+    Uses the same flat coordinate space the runtime uses for waypoints, so the
+    preview matches how the engine walks the route. Colours follow the theme.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setMinimumSize(420, 360)
+        self.waypoints: list[tuple[int, int]] = []
+
+    def set_waypoints(self, waypoints: list[tuple[int, int]]) -> None:
+        self.waypoints = [(int(x), int(y)) for x, y in waypoints]
+        self.update()
+
+    def _theme_is_dark(self) -> bool:
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        return (app.property("midgard_theme") if app is not None else None) != "light"
+
+    def paintEvent(self, event) -> None:
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QColor, QFont, QPainter, QPen
+
+        is_dark = self._theme_is_dark()
+        surface = QColor("#141c29") if is_dark else QColor("#ffffff")
+        grid = QColor(255, 255, 255, 20) if is_dark else QColor(0, 0, 0, 18)
+        muted = QColor("#8f9bad") if is_dark else QColor("#687588")
+        line = QColor("#58d2b0") if is_dark else QColor("#0f9d63")
+        start_c = QColor("#3fd08f")
+        end_c = QColor("#f2635f")
+        dot = QColor("#e0a33a")
+        text_c = QColor("#e8edf5") if is_dark else QColor("#17202e")
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(surface)
+        painter.drawRoundedRect(0, 0, w - 1, h - 1, 10, 10)
+
+        pad = 28
+        area_w, area_h = w - 2 * pad, h - 2 * pad
+        if area_w <= 20 or area_h <= 20:
+            return
+
+        # Light reference grid.
+        painter.setPen(QPen(grid, 1))
+        for i in range(1, 4):
+            gx = pad + area_w * i // 4
+            gy = pad + area_h * i // 4
+            painter.drawLine(gx, pad, gx, pad + area_h)
+            painter.drawLine(pad, gy, pad + area_w, gy)
+
+        if not self.waypoints:
+            painter.setPen(muted)
+            painter.setFont(QFont("Segoe UI", 10))
+            painter.drawText(
+                pad,
+                pad,
+                area_w,
+                area_h,
+                Qt.AlignmentFlag.AlignCenter,
+                "No waypoints configured.\nAdd them as x,y,wait;x,y,wait",
+            )
+            return
+
+        xs = [p[0] for p in self.waypoints]
+        ys = [p[1] for p in self.waypoints]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        span_x = max(1, max_x - min_x)
+        span_y = max(1, max_y - min_y)
+
+        def to_screen(px: int, py: int) -> tuple[int, int]:
+            # Uniform scale preserves the route's real proportions; y grows
+            # downward to match the game's client coordinate space.
+            scale = min(area_w / span_x, area_h / span_y)
+            ox = pad + (area_w - span_x * scale) / 2
+            oy = pad + (area_h - span_y * scale) / 2
+            return int(ox + (px - min_x) * scale), int(oy + (py - min_y) * scale)
+
+        points = [to_screen(px, py) for px, py in self.waypoints]
+
+        # Connecting route line.
+        painter.setPen(QPen(line, 2))
+        for i in range(len(points) - 1):
+            painter.drawLine(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1])
+
+        # Waypoint markers, numbered in walk order.
+        painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+        for i, (sx, sy) in enumerate(points):
+            if i == 0:
+                colour = start_c
+            elif i == len(points) - 1:
+                colour = end_c
+            else:
+                colour = dot
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(colour)
+            painter.drawEllipse(sx - 9, sy - 9, 18, 18)
+            painter.setPen(QColor("#0c111b"))
+            painter.drawText(
+                sx - 9, sy - 9, 18, 18, Qt.AlignmentFlag.AlignCenter, str(i + 1)
+            )
+
+        # Caption with the coordinate range.
+        painter.setPen(muted)
+        painter.setFont(QFont("Segoe UI", 8))
+        painter.drawText(
+            pad,
+            h - pad + 6,
+            area_w,
+            18,
+            Qt.AlignmentFlag.AlignLeft,
+            f"{len(points)} waypoints · X {min_x}–{max_x} · Y {min_y}–{max_y}",
+        )
+        painter.setPen(text_c)
+
+
 class StatisticsPage(Page):
     """Presents operational performance summaries and metrics from SQLite."""
 
@@ -1681,6 +1803,10 @@ class ProfilesPage(Page):
         file_actions_layout.addWidget(load_path_btn)
         layout.addLayout(file_actions_layout)
 
+        preview_btn = QPushButton("Preview Route Map")
+        preview_btn.clicked.connect(self._preview_navigation_route)
+        layout.addWidget(preview_btn)
+
         # Custom Script Loader Settings Row (TASK-034)
         layout.addWidget(QLabel("<b>Custom Script Hot-Plugin Loader (.py)</b>"))
         script_layout = QFormLayout()
@@ -2394,6 +2520,45 @@ class ProfilesPage(Page):
         qimg = pixmap.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
         img_bytes = qimg.constBits().tobytes()
         return Image.frombytes("RGBA", (qimg.width(), qimg.height()), img_bytes)
+
+    def _preview_navigation_route(self) -> None:
+        """Show the configured waypoints as a route map for visual verification."""
+        from midgard.runtime.input import DummyInputAdapter
+        from midgard.runtime.navigation import NavigationModule
+
+        raw = self.nav_waypoints_text.toPlainText().strip()
+        # Reuse the runtime parser so the preview matches how the engine reads the
+        # route, including JSON path-file support.
+        module = NavigationModule(
+            {"navigation.enabled": "true", "navigation.waypoints": raw},
+            DummyInputAdapter(),
+            hwnd=0,
+        )
+        waypoints = [(wx, wy) for wx, wy, _wait in module.waypoints]
+
+        if not waypoints:
+            QMessageBox.information(
+                self,
+                "Route Preview",
+                "No waypoints to preview. Add them as x,y,wait;x,y,wait "
+                "or load a path file first.",
+            )
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Navigation Route Preview")
+        dialog.setMinimumSize(560, 520)
+        dlg_layout = QVBoxLayout(dialog)
+
+        view = NavigationMapView()
+        view.set_waypoints(waypoints)
+        dlg_layout.addWidget(view, 1)
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.accept)
+        dlg_layout.addWidget(close_btn)
+
+        dialog.exec()
 
     def _pick_experience_region(self) -> None:
         """Capture the EXP counter bounding box coordinates and size."""

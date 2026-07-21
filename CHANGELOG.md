@@ -30,6 +30,9 @@ released remain under **Unreleased** until a version is intentionally published.
 
 - Metric tiles (`StatCard`) on the Runtime and Statistics pages, a colour-coded HP progress
   bar, and theme-aware console styling for the runtime terminal and the log viewer.
+- Navigation route preview: a "Preview Route Map" button on the Navigation tab renders the
+  configured waypoints as a numbered, connected route (`NavigationMapView`), parsed with the same
+  runtime parser the engine uses.
 - Operational Dashboard replacing the placeholder page: aggregate XP/loot/deaths/runtime
   totals across all profiles plus a per-profile overview of which automation modules are
   configured on.
